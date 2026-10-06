@@ -1,4 +1,4 @@
-import type { ImageCapability, ImageOperation, ImageParams, VideoCapability, VideoOperation, VideoParams } from "@nx/shared";
+import { imageSize, parseEditInstruction, videoSize, type ImageCapability, type ImageOperation, type ImageParams, type VideoCapability, type VideoOperation, type VideoParams } from "@nx/shared";
 import type { GpuEndpointConfig } from "../../config.js";
 import type { ImageInputs, ImageProvider, ProviderContext, ProviderLimits, ProviderOutput, VideoInputs, VideoProvider } from "../types.js";
 import { ENGINE_CATALOG, type EngineSpec } from "./catalog.js";
@@ -49,7 +49,9 @@ export class RemoteImageProvider extends RemoteBase<ImageCapability, ImageOperat
     const files: Record<string, string | undefined> = { source: i?.source, mask: i?.mask };
     i?.references.forEach((r, n) => (files[`reference_${n}`] = r.path));
     const refs = i?.references.map((r, n) => ({ field: `reference_${n}`, type: r.type, weight: r.weight })) ?? [];
-    return this.client.run(this.engine, p.operation, { ...p, references: refs }, files, ctx);
+    // target = requested output size; intent = the parsed natural-language edit, so engines need no NLP of their own
+    const extra = { target: imageSize(p), intent: p.operation === "edit" ? parseEditInstruction(p.instruction || p.prompt) : null };
+    return this.client.run(this.engine, p.operation, { ...p, references: refs, ...extra }, files, ctx);
   }
 
   generateTextToImage(p: ImageParams, ctx: ProviderContext) {
@@ -82,7 +84,7 @@ export class RemoteVideoProvider extends RemoteBase<VideoCapability, VideoOperat
     const files: Record<string, string | undefined> = { image: i?.image, end_image: i?.endImage, reference: i?.reference, video: i?.video };
     i?.keyframes.forEach((k, n) => (files[`keyframe_${n}`] = k.path));
     const keyframes = i?.keyframes.map((k, n) => ({ field: `keyframe_${n}`, position: k.position })) ?? [];
-    const [out] = await this.client.run(this.engine, operation, { ...p, keyframes }, files, ctx);
+    const [out] = await this.client.run(this.engine, operation, { ...p, keyframes, target: videoSize(p) }, files, ctx);
     return out!;
   }
 

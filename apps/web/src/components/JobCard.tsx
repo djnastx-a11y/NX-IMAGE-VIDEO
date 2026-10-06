@@ -132,7 +132,13 @@ export function JobCard({ job: snapshot, onReuse, onOpen }: { job: Job; onReuse?
             </>
           ) : (
             <>
-              {job.operation !== "upscale" && <span>{p.aspectRatio}</span>}
+              {job.outputs[0]?.width ? (
+                <span>
+                  {job.outputs[0].width}×{job.outputs[0].height}
+                </span>
+              ) : (
+                job.operation === "text_to_image" && <span>{p.aspectRatio}</span>
+              )}
               {job.outputs.length > 1 && <span>×{job.outputs.length}</span>}
             </>
           )}
