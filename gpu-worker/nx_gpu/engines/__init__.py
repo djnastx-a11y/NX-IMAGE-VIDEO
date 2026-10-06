@@ -10,7 +10,6 @@ from .base import Engine
 REAL_ENGINES = {
     "wan": "wan",
     "flux": "flux",
-    "flux-kontext": "flux",
     "qwen-image": "qwen_image",
     "qwen-image-edit": "qwen_image",
     "ltx": "ltx",

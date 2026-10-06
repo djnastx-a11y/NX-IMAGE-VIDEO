@@ -18,10 +18,10 @@ from .base import Engine, EngineError, JobContext, Output
 
 # Same ids as NX STUDIO's engine catalog, so a fake endpoint looks exactly like a real one.
 FAKE_SPECS: dict[str, tuple[str, list[str], dict[str, Any]]] = {
-    "wan": ("video", ["text_to_video", "image_to_video", "first_last_frame", "extend", "camera_control", "negative_prompt", "seed"], {"maxDuration": 10, "durations": [5, 10], "resolutions": ["480p", "720p"]}),
-    "ltx": ("video", ["text_to_video", "image_to_video", "video_to_video", "extend", "negative_prompt", "seed"], {"maxDuration": 10, "resolutions": ["480p", "720p"]}),
+    "wan": ("video", ["text_to_video", "image_to_video", "first_last_frame", "extend", "camera_control", "negative_prompt", "seed"], {"maxDuration": 5, "durations": [5], "resolutions": ["480p", "720p"]}),
+    "ltx": ("video", ["text_to_video", "image_to_video", "video_to_video", "first_last_frame", "keyframes", "extend", "camera_control", "negative_prompt", "seed", "fps"], {"maxDuration": 20, "durations": [5, 10, 15, 20], "resolutions": ["480p", "720p", "1080p"]}),
     "hunyuan": ("video", ["text_to_video", "image_to_video", "negative_prompt", "seed"], {"maxDuration": 5, "resolutions": ["480p", "720p"]}),
-    "flux": ("image", ["text_to_image", "image_to_image", "inpaint", "outpaint", "variation", "seed", "guidance", "steps", "custom_size", "multi_output"], {"maxOutputs": 4}),
+    "flux": ("image", ["text_to_image", "image_to_image", "edit", "variation", "seed", "guidance", "steps", "custom_size", "multi_output", "reference_image", "multi_reference", "style_reference"], {"maxOutputs": 4}),
     "qwen-image": ("image", ["text_to_image", "image_to_image", "variation", "negative_prompt", "seed", "guidance", "steps", "custom_size", "multi_output"], {"maxOutputs": 4}),
     "qwen-image-edit": ("image", ["edit", "inpaint", "outpaint", "seed", "guidance", "steps", "reference_image"], {"maxOutputs": 2}),
     "real-esrgan": ("image", ["upscale"], {}),
