@@ -13,7 +13,8 @@
     "start": "npm start -w @nx/server",
     "migrate": "npm run migrate -w @nx/server",
     "e2e:server": "scripts/e2e-server.sh",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "reset-password": "npm run reset-password -w @nx/server --"
   },
   "engines": {
     "node": ">=22"

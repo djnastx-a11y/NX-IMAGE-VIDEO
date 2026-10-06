@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 export type ProcessRole = "all" | "api" | "worker";
@@ -98,7 +99,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         ? { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD, name: env.ADMIN_NAME ?? "Admin" }
         : null,
     worker: {
-      id: env.NX_WORKER_ID ?? `worker-${process.pid}`,
+      // hostname + pid: unique even when every container runs its worker as pid 7
+      id: env.NX_WORKER_ID ?? `${os.hostname()}-${process.pid}`,
       concurrency: int(env.NX_WORKER_CONCURRENCY, 2),
       leaseSeconds: int(env.NX_LEASE_SECONDS, 60),
       pollMs: int(env.NX_WORKER_POLL_MS, 1000),

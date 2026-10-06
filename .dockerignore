@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+data
+e2e/.results
+e2e/.shots
+e2e/.fixtures
+.git
+.env
+.env.*
+gpu-worker

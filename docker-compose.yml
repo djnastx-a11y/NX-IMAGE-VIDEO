@@ -1,0 +1,51 @@
+# Local or single-server deployment: PostgreSQL + NX STUDIO (API/web) + one job worker.
+# Usage: cp .env.example .env  (edit it)  then  docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: nxstudio
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nx -d nxstudio"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: nx-studio:latest
+    env_file: .env
+    environment:
+      NX_ROLE: api
+      DATABASE_URL: postgres://nx:${POSTGRES_PASSWORD}@db:5432/nxstudio
+    ports:
+      - "${NX_PORT:-8787}:8787"
+    volumes:
+      - media:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: nx-studio:latest
+    env_file: .env
+    environment:
+      NX_ROLE: worker
+      DATABASE_URL: postgres://nx:${POSTGRES_PASSWORD}@db:5432/nxstudio
+    volumes:
+      - media:/data
+    healthcheck:
+      disable: true # no HTTP server in the worker role
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  media:

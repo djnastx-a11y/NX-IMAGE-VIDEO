@@ -7,7 +7,7 @@ const external = Object.keys(pkg.dependencies ?? {}).filter((d) => !d.startsWith
 
 rmSync("dist", { recursive: true, force: true });
 await build({
-  entryPoints: { main: "src/main.ts", "migrate-cli": "src/db/migrate-cli.ts" },
+  entryPoints: { main: "src/main.ts", "migrate-cli": "src/db/migrate-cli.ts", "reset-password-cli": "src/auth/reset-password-cli.ts" },
   outdir: "dist",
   bundle: true,
   platform: "node",
