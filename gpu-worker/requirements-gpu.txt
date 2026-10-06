@@ -1,0 +1,12 @@
+# Real engines (needs an NVIDIA GPU and a recent driver; PyPI's torch wheels bundle CUDA).
+# The engine code was written against the diffusers 0.41.0 API (signatures are checked in
+# tests/test_engines.py); upgrade diffusers deliberately and re-run the tests and bench.py.
+-r requirements.txt
+torch>=2.8
+diffusers==0.41.0
+transformers>=5.0
+accelerate>=1.10
+safetensors>=0.8
+sentencepiece>=0.2
+numpy>=1.26
+spandrel>=0.4

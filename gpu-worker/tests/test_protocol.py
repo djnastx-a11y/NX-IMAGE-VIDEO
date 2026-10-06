@@ -95,3 +95,21 @@ def test_failures_and_cancel(tmp_path):
     assert c.post(f"/v1/jobs/{job_id}/cancel", headers=AUTH).json() == {"ok": True}
     assert wait(c, job_id)["status"] == "cancelled"
     assert c.get(f"/v1/jobs/{job_id}/outputs/0", headers=AUTH).status_code == 404
+
+
+def test_job_during_preload_waits_instead_of_loading_twice(tmp_path):
+    from nx_gpu.engines.fake import FakeEngine
+
+    class SlowLoad(FakeEngine):
+        loads = 0
+
+        def load(self) -> None:
+            SlowLoad.loads += 1
+            time.sleep(1.0)
+            self.loaded = True
+
+    c = TestClient(create_app([SlowLoad("flux")], tmp_path, TOKEN, load=True))
+    time.sleep(0.2)  # the preload thread is now inside load()
+    r = c.post("/v1/jobs", headers=AUTH, data={"engine": "flux", "operation": "text_to_image", "params": json.dumps({"prompt": "x", "target": {"width": 256, "height": 256}})})
+    assert wait(c, r.json()["id"])["status"] == "completed"
+    assert SlowLoad.loads == 1

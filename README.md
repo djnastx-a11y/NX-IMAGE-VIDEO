@@ -40,7 +40,7 @@ npm run dev                  # API sur :8787 et interface Vite sur :5173
 | Commande | Ce qui est testé |
 |---|---|
 | `npm test` | 14 tests unitaires (paramètres, tailles, compréhension des instructions d'édition) et 34 tests d'intégration sur un vrai PostgreSQL : auth, projets, uploads, chaque opération image et vidéo, file, statuts, retry, annulation, historique, bibliothèque, presets, admin, plus la chaîne GPU distante complète contre le serveur GPU Python |
-| `cd gpu-worker && pytest` | Le serveur GPU : protocole, authentification, sorties, échecs, annulation |
+| `cd gpu-worker && pytest` | Le serveur GPU : protocole, authentification, sorties, échecs, annulation, et le câblage des moteurs réels (LTX, Wan, Qwen, FLUX, Real-ESRGAN) contre les signatures exactes de diffusers |
 | `npm run e2e:server` puis `npm run e2e` | 7 parcours dans un vrai navigateur, sur desktop et sur téléphone, dont le parcours complet image → Animate → vidéo 10 s 9:16 → bibliothèque → téléchargement, variation, extend |
 
 ## Documentation
@@ -61,4 +61,4 @@ npm run dev                  # API sur :8787 et interface Vite sur :5173
 |---|---|
 | Application complète avec les moteurs de test | Vérifiée : tests automatisés et navigateur, en local et sous Docker Compose |
 | Chaîne NX STUDIO → serveur GPU → résultats | Vérifiée avec les moteurs « fake » du serveur GPU |
-| Moteurs IA réels (LTX-2.5, Wan 2.2, Qwen-Image-Edit, FLUX.2) | À brancher et mesurer sur un vrai GPU, voir [docs/MODELS.md](docs/MODELS.md) |
+| Moteurs IA réels (LTX-2.5, Wan 2.2, Qwen-Image-Edit, FLUX.2, Real-ESRGAN) | Écrits, testés sans GPU, image Docker construite. Reste à les lancer et les mesurer sur une vraie machine GPU, voir [docs/GPU_WORKERS.md](docs/GPU_WORKERS.md#ce-qui-est-vérifié-et-ce-qui-ne-lest-pas-encore) |

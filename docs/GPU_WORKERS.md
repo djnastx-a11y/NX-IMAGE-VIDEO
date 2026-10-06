@@ -58,20 +58,75 @@ Cette chaîne est couverte par `apps/server/test/remote.test.ts` (découverte, v
 
 ## Moteurs réels
 
-Le registre des moteurs réels est dans `gpu-worker/nx_gpu/engines/__init__.py` (`REAL_ENGINES`). Un moteur est une classe `Engine` (`engines/base.py`) :
+Ils sont écrits avec la bibliothèque open-source **diffusers** (Hugging Face) et téléchargent les poids publics des modèles au premier chargement.
 
-```python
-class MonMoteur(Engine):
-    def load(self):                        # télécharge/charge les poids une fois
-        ...
-    def run(self, operation, params, ctx): # une génération
-        img = ctx.file("image")            # fichiers reçus
-        ctx.progress(0.5, "Denoising")     # progression ; lève Cancelled si le job est annulé
-        ...
-        return [Output(path, seed=params.get("seed"), mime="video/mp4")]
+| Id | Modèle (par défaut) | Opérations | Mémoire GPU visée |
+|---|---|---|---|
+| `ltx` | `Lightricks/LTX-2.5-Diffusers` | texte→vidéo, image→vidéo, first/last frame, keyframes, vidéo→vidéo, extend ; jusqu'à 20 s | 48 Go et plus |
+| `wan` | `Wan-AI/Wan2.2-I2V-A14B-Diffusers` et `…-T2V-A14B-Diffusers` | texte→vidéo, image→vidéo, first/last frame, extend ; 5 s à 16 i/s | 48 Go et plus |
+| `qwen-image-edit` | `Qwen/Qwen-Image-Edit-2511` | édition en langage naturel avec références, inpainting, outpainting | 48 Go et plus |
+| `qwen-image` | `Qwen/Qwen-Image` | texte→image, image→image, variations | 48 Go et plus |
+| `flux` | `black-forest-labs/FLUX.2-klein-4B` | texte→image, image→image, édition, variations, références | 16 Go et plus |
+| `real-esrgan` | `RealESRGAN_x4plus` | upscale x2/x4 ou à une largeur donnée | 4 Go et plus |
+
+Choix de mise en œuvre :
+- **Mouvements de caméra.** Ils sont écrits dans le prompt (« the camera dollies in toward the subject, smoothly »), avec un vocabulaire qui dépend de l'intensité. Ces modèles suivent bien ce langage, et aucun module supplémentaire n'est nécessaire.
+- **Taille de sortie.** Les modèles exigent des multiples de 16 ou 32 pixels. Le moteur génère à la taille valide la plus proche, puis la vidéo ou l'image est recadrée à la taille exacte demandée (720×1280 pour du 9:16 en 720p).
+- **Durée LTX.** 10 s à 24 i/s donnent 241 images.
+- **Durée Wan.** Wan produit 5 s ; 10 s s'obtiennent avec Extend.
+- **Vidéo→vidéo LTX.** La vidéo source sert de conditionnement, avec la force choisie dans l'interface. Pour un vrai transfert de style, LTX propose des modules IC-LoRA, à évaluer.
+- **Échecs.** Un manque de mémoire GPU devient une erreur *retryable*. L'annulation arrête le calcul entre deux étapes.
+- **Chargement.** Un moteur qui ne se charge pas (poids introuvables, pas de GPU) n'empêche pas les autres de tourner : il apparaît dans `failed_engines` avec son erreur.
+
+### Réglages
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `NX_GPU_OFFLOAD` | `model` | `none` : tout en mémoire GPU, le plus rapide si elle suffit. `model` : chaque sous-modèle passe sur le GPU seulement quand il travaille. `sequential` : le moins de mémoire, le plus lent |
+| `NX_LTX_MODEL`, `NX_LTX_STEPS` | voir tableau, `30` | Modèle et nombre d'étapes LTX (une version distillée tourne en environ 8 étapes) |
+| `NX_WAN_I2V_MODEL`, `NX_WAN_T2V_MODEL`, `NX_WAN_STEPS` | voir tableau, `40` | Wan ; `NX_WAN_KEEP_BOTH=1` garde les deux modèles chargés |
+| `NX_QWEN_IMAGE_MODEL`, `NX_QWEN_EDIT_MODEL`, `NX_QWEN_STEPS` | voir tableau, `40` | Qwen |
+| `NX_FLUX_MODEL`, `NX_FLUX_STEPS`, `NX_FLUX_STEPS_DISTILLED` | voir tableau, `50`, `4` | FLUX.2 (klein est distillé : 4 étapes) |
+| `NX_ESRGAN_WEIGHTS`, `NX_ESRGAN_TILE` | téléchargé, `512` | Poids Real-ESRGAN et taille des tuiles |
+| `HF_HOME`, `NX_GPU_MODELS_DIR` | `/models/hf`, `/models/nx` dans l'image | Où les poids sont stockés : à mettre sur un volume persistant |
+
+### Image Docker
+
+```bash
+docker build -t nx-gpu gpu-worker
+docker run --gpus all -p 8188:8188 -v nx-models:/models \
+  -e NX_ENGINES=ltx,qwen-image-edit,real-esrgan -e NX_GPU_TOKEN=<jeton> nx-gpu
 ```
 
-Lever `EngineError(message, retryable=True)` pour une erreur passagère. Les moteurs réels prévus et leur choix sont expliqués dans [MODELS.md](MODELS.md). Ils ne peuvent être vérifiés que sur un vrai GPU : tant qu'ils n'ont pas tourné sur une machine GPU, ils ne sont pas considérés comme terminés.
+L'image contient PyTorch 2.14 compilé pour **CUDA 13**. La machine GPU doit donc avoir un pilote NVIDIA récent (série 580 ou plus) et le NVIDIA Container Toolkit. Sur RunPod et Vast.ai, filtrer les machines sur « CUDA 13 ».
+
+### Ce qui est vérifié, et ce qui ne l'est pas encore
+
+**Vérifié ici, sans GPU :**
+- L'image Docker se construit. diffusers 0.41.0, transformers 5.19 et PyTorch s'y importent ensemble, et les six moteurs s'y créent.
+- `tests/test_engines.py` (11 tests) remplace PyTorch et les modèles par des doublures, puis vérifie pour chaque opération :
+  - la traduction des paramètres (taille, nombre d'images, conditionnements, caméra, guidance, seed) ;
+  - que chaque argument passé existe bien dans la signature réelle du pipeline diffusers 0.41.0 ;
+  - la progression, l'annulation et le manque de mémoire ;
+  - l'encodage du MP4 final à la bonne taille, analysé avec ffprobe.
+- Un job qui arrive pendant le chargement initial attend ce chargement, au lieu de charger le modèle une seconde fois.
+- `bench.py` a tourné contre le serveur GPU avec les moteurs « fake ».
+
+**Pas encore vérifié, faute de GPU :**
+- la qualité des résultats ;
+- les temps de génération ;
+- la mémoire réellement utilisée ;
+- le téléchargement des poids.
+
+C'est le rôle de `bench.py` sur la première machine GPU.
+
+### Mesurer sur une vraie machine GPU
+
+```bash
+python bench.py --url https://<serveur-gpu> --token <jeton> --image photo.jpg --repeat 2
+```
+
+Le script lance les cas types de [MODELS.md](MODELS.md) (image→vidéo 5 et 10 s en 9:16 720p, texte→vidéo, édition, texte→image, upscale) pour les moteurs chargés. Il mesure le temps et, s'il tourne sur la machine GPU, le pic de mémoire. Il range les résultats et un rapport JSON dans `bench-results/`. Le premier passage inclut le chargement du modèle, d'où `--repeat 2`.
 
 ## Où faire tourner le serveur GPU
 

@@ -93,6 +93,9 @@ class Worker:
         self.ttl = ttl_seconds
         self.gpu = gpu_name()
         self.load_errors: dict[str, str] = {}
+        # One lock per engine: a job arriving during the startup preload waits for it instead of
+        # loading the same weights a second time.
+        self.load_locks = {e.id: threading.Lock() for e in engines}
         for _ in range(concurrency):
             threading.Thread(target=self._loop, daemon=True).start()
         threading.Thread(target=self._janitor, daemon=True).start()
@@ -101,11 +104,17 @@ class Worker:
         for e in self.engines.values():
             try:
                 t = time.time()
-                e.load()
+                self.ensure_loaded(e)
                 jlog(logging.INFO, "engine loaded", engine=e.id, seconds=round(time.time() - t, 1))
             except Exception as err:  # keep serving the other engines
                 self.load_errors[e.id] = str(err)
                 jlog(logging.ERROR, "engine failed to load", engine=e.id, error=str(err))
+
+    def ensure_loaded(self, engine: Engine) -> None:
+        with self.load_locks[engine.id]:
+            if not engine.loaded:
+                engine.load()
+                self.load_errors.pop(engine.id, None)
 
     def submit(self, job: Job) -> None:
         with self.lock:
@@ -143,8 +152,7 @@ class Worker:
 
             ctx = JobContext(job_id=job.id, work_dir=job.work_dir, files=job.files, _progress=report, _cancelled=lambda job=job: job.cancel_requested)
             try:
-                if not engine.loaded:
-                    engine.load()
+                self.ensure_loaded(engine)
                 ctx.check()
                 job.outputs = engine.run(job.operation, job.params, ctx)
                 if not job.outputs:

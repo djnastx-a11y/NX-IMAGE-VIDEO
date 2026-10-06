@@ -71,3 +71,4 @@ Toutes les variables se lisent au démarrage du serveur (`apps/server/src/config
 | `NX_GPU_MAX_UPLOAD_MB` | `500` | Taille maximale d'une requête |
 | `NX_GPU_PRELOAD` | `1` | Charger les modèles au démarrage (`0` : au premier job) |
 | `NX_FAKE_SECONDS` | `2` | Durée des moteurs de test |
+| `NX_GPU_OFFLOAD`, `NX_LTX_*`, `NX_WAN_*`, `NX_QWEN_*`, `NX_FLUX_*`, `NX_ESRGAN_*` | — | Réglages des moteurs réels, voir [GPU_WORKERS](GPU_WORKERS.md#réglages) |
