@@ -1,0 +1,14 @@
+{
+  "name": "nx-studio",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "npm run dev -w @nx/server & npm run dev -w @nx/web",
+    "build": "npm run typecheck -w @nx/shared && npm run build -w @nx/server && npm run build -w @nx/web",
+    "test": "npm test -w @nx/shared && npm test -w @nx/server",
+    "start": "npm start -w @nx/server",
+    "migrate": "npm run migrate -w @nx/server"
+  },
+  "engines": { "node": ">=22" }
+}
