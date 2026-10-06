@@ -183,3 +183,8 @@ export interface AuditLog {
   data: Record<string, unknown> | null;
   ip: string | null;
 }
+
+type Clashing = "operation" | "resolution" | "quality" | "aspectRatio";
+/** Read-only view over either module's params, for display code that handles both. */
+export type ParamsView = Omit<ImageParams, Clashing> &
+  Omit<VideoParams, Clashing> & { operation: Operation; resolution: string; quality: string; aspectRatio: string };

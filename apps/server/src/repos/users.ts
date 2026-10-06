@@ -93,8 +93,9 @@ export class SessionsRepo {
     await this.pool.query("DELETE FROM sessions WHERE id = $1", [sha256(token)]);
   }
 
-  async destroyAllForUser(userId: string) {
-    await this.pool.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+  /** Signs the user out everywhere, optionally keeping the session making the request. */
+  async destroyAllForUser(userId: string, exceptToken?: string) {
+    await this.pool.query("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)", [userId, exceptToken ? sha256(exceptToken) : null]);
   }
 
   async purgeExpired() {

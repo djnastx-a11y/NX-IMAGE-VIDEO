@@ -2,13 +2,23 @@
   "name": "nx-studio",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w @nx/server & npm run dev -w @nx/web",
     "build": "npm run typecheck -w @nx/shared && npm run build -w @nx/server && npm run build -w @nx/web",
     "test": "npm test -w @nx/shared && npm test -w @nx/server",
     "start": "npm start -w @nx/server",
-    "migrate": "npm run migrate -w @nx/server"
+    "migrate": "npm run migrate -w @nx/server",
+    "e2e:server": "scripts/e2e-server.sh",
+    "e2e": "playwright test"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
 }

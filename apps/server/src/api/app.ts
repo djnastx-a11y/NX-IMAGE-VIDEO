@@ -105,9 +105,20 @@ export async function buildApp(s: Services): Promise<FastifyInstance> {
 
   // Single-page web app (built by apps/web) served by the same process.
   if (fs.existsSync(path.join(s.config.webDir, "index.html"))) {
-    await app.register(fastifyStatic, { root: s.config.webDir, prefix: "/", wildcard: false });
+    // wildcard: files are looked up per request, so a rebuilt web app is served without a restart
+    await app.register(fastifyStatic, {
+      root: s.config.webDir,
+      prefix: "/",
+      wildcard: true,
+      setHeaders: (reply, file) => {
+        // hashed bundles never change; index.html must always be revalidated
+        reply.header("cache-control", file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    });
     app.setNotFoundHandler((req: FastifyRequest, reply: FastifyReply) => {
-      if (req.method === "GET" && !req.url.startsWith("/api/")) return reply.type("text/html").sendFile("index.html");
+      // client-side routes get the SPA shell; missing API routes and missing files get a real 404
+      const isPage = req.method === "GET" && !req.url.startsWith("/api/") && !req.url.startsWith("/assets/") && !path.extname(req.url.split("?")[0]!);
+      if (isPage) return reply.type("text/html").header("cache-control", "no-cache").sendFile("index.html");
       return reply.code(404).send({ error: "Not found" });
     });
   } else {

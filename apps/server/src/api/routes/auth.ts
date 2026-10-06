@@ -70,6 +70,7 @@ export async function authRoutes(app: FastifyInstance, { s, requireUser, dto }: 
     const weak = validatePasswordStrength(body.next);
     if (weak) throw new HttpError(400, weak, "weak_password");
     await s.users.update(u.id, { passwordHash: await hashPassword(body.next) });
+    await s.sessions.destroyAllForUser(u.id, req.cookies[s.config.session.cookieName]);
     await s.audit.log({ userId: u.id, action: "auth.password_changed", ip: req.ip });
     return { ok: true };
   });

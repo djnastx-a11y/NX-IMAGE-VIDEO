@@ -9,3 +9,8 @@ coverage/
 *.tmp.ts
 __pycache__/
 .venv/
+e2e/.results/
+e2e/.shots/
+e2e/.fixtures/
+test-results/
+playwright-report/

@@ -8,6 +8,7 @@
     "build": "tsc --noEmit -p . && node build.mjs",
     "start": "node dist/main.js",
     "migrate": "tsx src/db/migrate-cli.ts",
+    "migrate:prod": "node dist/migrate-cli.js",
     "test": "vitest run"
   },
   "dependencies": {

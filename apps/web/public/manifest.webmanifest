@@ -1,0 +1,9 @@
+{
+  "name": "NX STUDIO",
+  "short_name": "NX STUDIO",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b10",
+  "theme_color": "#0b0b10",
+  "icons": [{ "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

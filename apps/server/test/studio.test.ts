@@ -72,6 +72,19 @@ describe("auth", () => {
     await user.req("GET", "/api/admin/overview", undefined, 403);
     expect((await admin.get("/api/admin/overview")).db.ok).toBe(true);
   });
+
+  it("changing the password keeps this session and signs out the others", async () => {
+    const a = new Client(h.app);
+    const b = new Client(h.app);
+    await a.post("/api/auth/login", { email: "user@nx.studio", password: "user-password-123" });
+    await b.post("/api/auth/login", { email: "user@nx.studio", password: "user-password-123" });
+    await a.post("/api/auth/password", { current: "wrong-one", next: "brand-new-pass-1" }, 400);
+    await a.post("/api/auth/password", { current: "user-password-123", next: "short" }, 400);
+    await a.post("/api/auth/password", { current: "user-password-123", next: "brand-new-pass-1" });
+    await a.get("/api/auth/me");
+    await b.req("GET", "/api/auth/me", undefined, 401);
+    await a.post("/api/auth/password", { current: "brand-new-pass-1", next: "user-password-123" });
+  });
 });
 
 describe("projects", () => {
@@ -131,10 +144,12 @@ describe("NX IMAGE with MockImageProvider", () => {
   beforeAll(() => h.runner.start());
 
   it("text to image: queue → completed with N real PNG outputs and every status", async () => {
-    const [job] = await admin.post<Job[]>("/api/jobs", {
-      module: "image",
-      params: { operation: "text_to_image", prompt: "A neon street at night", aspectRatio: "9:16", resolution: "1K", numOutputs: 2, seed: 1234 },
-    });
+    const job = (
+      await admin.post<Job[]>("/api/jobs", {
+        module: "image",
+        params: { operation: "text_to_image", prompt: "A neon street at night", aspectRatio: "9:16", resolution: "1K", numOutputs: 2, seed: 1234 },
+      })
+    )[0]!;
     expect(job.status).toBe("queued");
     const seen = await trackStatuses(admin, job.id);
     expect(seen[seen.length - 1]).toBe("completed");
