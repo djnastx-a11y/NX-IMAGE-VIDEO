@@ -181,8 +181,11 @@ class Agent:
         backoff = 1.0
         while not self.stop.is_set():
             try:
+                started = time.monotonic()
                 task = self.api.post("/api/gpu-agent/claim", {"wait": 20}, timeout=40).get("task")
                 backoff = 1.0
+                if not task and time.monotonic() - started < 1:
+                    self.stop.wait(1)  # a server that does not hold the long poll must not be flooded
             except Exception as err:
                 jlog(logging.WARNING, "cannot reach NX STUDIO", error=str(err), retry_in=backoff)
                 self.stop.wait(backoff)

@@ -83,6 +83,9 @@ export async function gpuAgentRoutes(app: FastifyInstance, { s }: ApiContext) {
       .object({ wait: z.number().min(0).max(MAX_WAIT_SEC).default(20) })
       .parse(req.body ?? {});
     const end = Date.now() + wait * 1000;
+    // the request stream is already finished here (req.raw.destroyed is true once the body is read):
+    // only the socket says whether the agent hung up
+    const socket = req.raw.socket;
     for (;;) {
       await s.gpuTasks.heartbeat(agent.id, undefined);
       const task = await s.gpuTasks.claim(agent.id);
@@ -107,7 +110,7 @@ export async function gpuAgentRoutes(app: FastifyInstance, { s }: ApiContext) {
           },
         };
       }
-      if (Date.now() >= end || req.raw.destroyed) return { task: null };
+      if (Date.now() >= end || socket.destroyed) return { task: null };
       await new Promise((r) => setTimeout(r, 500));
     }
   });

@@ -126,6 +126,21 @@ describe.skipIf(!hasWorker)(
       expect(r.status).toBe(401);
     });
 
+    it("claim waits for a task instead of returning at once", async () => {
+      const t0 = Date.now();
+      const r = await fetch(`${base}/api/gpu-agent/claim`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ wait: 1.5 }),
+      });
+      expect(r.status).toBe(200);
+      expect(await r.json()).toEqual({ task: null });
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(1400);
+    });
+
     it("once the agent connects, its engines become available", async () => {
       agent = startAgent();
       for (let i = 0; i < 100; i++) {

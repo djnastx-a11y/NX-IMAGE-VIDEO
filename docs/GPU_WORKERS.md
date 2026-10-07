@@ -215,6 +215,16 @@ Les fichiers d'une tâche sont supprimés du stockage de NX STUDIO dès que le j
 
 L'agent Kaggle et le téléphone doivent pouvoir joindre NX STUDIO par Internet. Sur un Mac, le plus simple et gratuit est **Tailscale Funnel**, qui donne une adresse HTTPS fixe du type `https://mon-mac.tailXXXX.ts.net` :
 
+**En une commande.** Une fois Docker Desktop et Tailscale installés (et Tailscale connecté), coller dans le Terminal :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/djnastx-a11y/NX-IMAGE-VIDEO/main/scripts/mac-setup.sh | bash
+```
+
+Le script installe NX STUDIO dans `~/NX-STUDIO`, crée `.env` (mots de passe et jeton Kaggle aléatoires, moteurs de test désactivés, port limité au Mac lui-même), lance `docker compose`, active Funnel et affiche l'adresse. Il écrit aussi `kaggle-cellule.txt` : tout le notebook Kaggle en un seul bloc, avec l'adresse et le jeton déjà remplis, à coller dans un notebook vide. Relancer la même commande met NX STUDIO à jour en gardant `.env` et les données. Vérifié sous Linux avec Docker et un faux Tailscale (installation, démarrage, agent connecté, vidéo produite) ; pas encore lancé sur un vrai Mac.
+
+**À la main :**
+
 1. Lancer NX STUDIO sur le Mac avec Docker Desktop (gratuit pour un usage personnel) : `docker compose up -d --build`, voir le [README](../README.md). Garder `COOKIE_SECURE=true` : Funnel fournit le HTTPS.
 2. Installer l'application Tailscale pour macOS et se connecter (compte gratuit).
 3. Dans la console Tailscale (*DNS*), activer **MagicDNS** et **HTTPS Certificates**.
