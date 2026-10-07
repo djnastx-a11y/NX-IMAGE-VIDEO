@@ -15,6 +15,17 @@ export interface GpuEndpointConfig {
   engines?: string[];
 }
 
+/**
+ * A GPU machine that connects out to NX STUDIO and pulls its jobs (Kaggle, a home PC behind a router...):
+ * no inbound address needed on the GPU side. It authenticates with the token in the variable named by `tokenEnv`.
+ */
+export interface GpuAgentConfig {
+  id: string;
+  tokenEnv: string;
+  /** Engines it runs, e.g. ["ltx-video", "flux"] (it may be offline when NX STUDIO starts) */
+  engines: string[];
+}
+
 function bool(v: string | undefined, def: boolean): boolean {
   if (v === undefined || v === "") return def;
   return ["1", "true", "yes", "on"].includes(v.toLowerCase());
@@ -28,8 +39,29 @@ function int(v: string | undefined, def: number): number {
 function parseEndpoints(raw: string | undefined): GpuEndpointConfig[] {
   if (!raw) return [];
   const parsed = JSON.parse(raw) as GpuEndpointConfig[];
-  if (!Array.isArray(parsed)) throw new Error("NX_GPU_ENDPOINTS must be a JSON array");
-  for (const e of parsed) if (!e.id || !e.url) throw new Error("Each NX_GPU_ENDPOINTS entry needs an id and a url");
+  if (!Array.isArray(parsed))
+    throw new Error("NX_GPU_ENDPOINTS must be a JSON array");
+  for (const e of parsed)
+    if (!e.id || !e.url)
+      throw new Error("Each NX_GPU_ENDPOINTS entry needs an id and a url");
+  return parsed;
+}
+
+function parseAgents(raw: string | undefined): GpuAgentConfig[] {
+  if (!raw) return [];
+  const parsed = JSON.parse(raw) as GpuAgentConfig[];
+  if (!Array.isArray(parsed))
+    throw new Error("NX_GPU_AGENTS must be a JSON array");
+  for (const a of parsed) {
+    if (!a.id || !/^[a-z0-9][a-z0-9-]*$/.test(a.id))
+      throw new Error(
+        "Each NX_GPU_AGENTS entry needs an id (lowercase letters, digits, dashes)",
+      );
+    if (!a.tokenEnv)
+      throw new Error(`NX_GPU_AGENTS "${a.id}" needs a tokenEnv`);
+    if (!Array.isArray(a.engines) || !a.engines.length)
+      throw new Error(`NX_GPU_AGENTS "${a.id}" needs its engines list`);
+  }
   return parsed;
 }
 
@@ -56,15 +88,23 @@ export interface Config {
       };
   session: { ttlDays: number; cookieSecure: boolean; cookieName: string };
   bootstrapAdmin: { email: string; password: string; name: string } | null;
-  worker: { id: string; concurrency: number; leaseSeconds: number; pollMs: number };
+  worker: {
+    id: string;
+    concurrency: number;
+    leaseSeconds: number;
+    pollMs: number;
+  };
   enableMock: boolean;
   mockMinSeconds: number;
   gpuEndpoints: GpuEndpointConfig[];
+  gpuAgents: GpuAgentConfig[];
   rateLimit: { max: number; loginMax: number };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const dataDir = path.resolve(env.NX_DATA_DIR ?? path.join(process.cwd(), "data"));
+  const dataDir = path.resolve(
+    env.NX_DATA_DIR ?? path.join(process.cwd(), "data"),
+  );
   const isProd = env.NODE_ENV === "production";
   const driver = (env.STORAGE_DRIVER ?? "local") as "local" | "s3";
   return {
@@ -75,7 +115,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: bool(env.TRUST_PROXY, isProd),
     databaseUrl: env.DATABASE_URL ?? "postgres://nx@127.0.0.1:5432/nxstudio",
     dataDir,
-    webDir: path.resolve(env.NX_WEB_DIR ?? path.join(process.cwd(), "..", "web", "dist")),
+    webDir: path.resolve(
+      env.NX_WEB_DIR ?? path.join(process.cwd(), "..", "web", "dist"),
+    ),
     storage:
       driver === "s3"
         ? {
@@ -88,7 +130,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
             forcePathStyle: bool(env.S3_FORCE_PATH_STYLE, true),
             prefix: env.S3_PREFIX ?? "",
           }
-        : { driver: "local", root: path.resolve(env.NX_MEDIA_DIR ?? path.join(dataDir, "media")) },
+        : {
+            driver: "local",
+            root: path.resolve(env.NX_MEDIA_DIR ?? path.join(dataDir, "media")),
+          },
     session: {
       ttlDays: int(env.SESSION_TTL_DAYS, 30),
       cookieSecure: bool(env.COOKIE_SECURE, isProd),
@@ -96,7 +141,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     bootstrapAdmin:
       env.ADMIN_EMAIL && env.ADMIN_PASSWORD
-        ? { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD, name: env.ADMIN_NAME ?? "Admin" }
+        ? {
+            email: env.ADMIN_EMAIL,
+            password: env.ADMIN_PASSWORD,
+            name: env.ADMIN_NAME ?? "Admin",
+          }
         : null,
     worker: {
       // hostname + pid: unique even when every container runs its worker as pid 7
@@ -108,7 +157,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     enableMock: bool(env.NX_ENABLE_MOCK, true),
     mockMinSeconds: int(env.NX_MOCK_MIN_SECONDS, 4),
     gpuEndpoints: parseEndpoints(env.NX_GPU_ENDPOINTS),
-    rateLimit: { max: int(env.RATE_LIMIT_MAX, 600), loginMax: int(env.RATE_LIMIT_LOGIN_MAX, 10) },
+    gpuAgents: parseAgents(env.NX_GPU_AGENTS),
+    rateLimit: {
+      max: int(env.RATE_LIMIT_MAX, 600),
+      loginMax: int(env.RATE_LIMIT_LOGIN_MAX, 10),
+    },
   };
 }
 
@@ -123,10 +176,26 @@ export function publicConfig(c: Config) {
     storage:
       c.storage.driver === "local"
         ? { driver: "local", root: c.storage.root }
-        : { driver: "s3", bucket: c.storage.bucket, region: c.storage.region, endpoint: c.storage.endpoint ?? null, prefix: c.storage.prefix },
+        : {
+            driver: "s3",
+            bucket: c.storage.bucket,
+            region: c.storage.region,
+            endpoint: c.storage.endpoint ?? null,
+            prefix: c.storage.prefix,
+          },
     session: c.session,
     worker: c.worker,
     enableMock: c.enableMock,
-    gpuEndpoints: c.gpuEndpoints.map((e) => ({ id: e.id, url: e.url, engines: e.engines ?? null, token: e.tokenEnv ? `env:${e.tokenEnv}` : null })),
+    gpuEndpoints: c.gpuEndpoints.map((e) => ({
+      id: e.id,
+      url: e.url,
+      engines: e.engines ?? null,
+      token: e.tokenEnv ? `env:${e.tokenEnv}` : null,
+    })),
+    gpuAgents: c.gpuAgents.map((a) => ({
+      id: a.id,
+      engines: a.engines,
+      token: `env:${a.tokenEnv}`,
+    })),
   };
 }

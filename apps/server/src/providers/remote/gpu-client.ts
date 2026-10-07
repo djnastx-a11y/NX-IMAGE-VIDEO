@@ -10,7 +10,11 @@ import type { ProviderContext, ProviderOutput } from "../types.js";
 export interface RemoteHealth {
   ok: boolean;
   gpu?: string;
-  engines?: { id: string; capabilities?: string[]; limits?: Record<string, unknown> }[];
+  engines?: {
+    id: string;
+    capabilities?: string[];
+    limits?: Record<string, unknown>;
+  }[];
 }
 
 interface RemoteJob {
@@ -23,6 +27,22 @@ interface RemoteJob {
   outputs?: { index: number; seed?: number | null; mime?: string }[];
 }
 
+/** How remote providers reach a GPU: pushed over HTTP (GpuClient) or pulled by an agent (AgentTransport). */
+export interface GpuTransport {
+  /** Suffix of provider ids, e.g. "runpod-1" in "ltx@runpod-1" */
+  readonly id: string;
+  /** Shown as the provider's backend in the admin */
+  readonly label: string;
+  health(): Promise<RemoteHealth>;
+  run(
+    engine: string,
+    operation: string,
+    params: unknown,
+    files: Record<string, string | undefined>,
+    ctx: ProviderContext,
+  ): Promise<ProviderOutput[]>;
+}
+
 /**
  * Client for the NX GPU protocol (docs/GPU_WORKERS.md). The same protocol is served on a local GPU,
  * a RunPod pod, a Vast.ai instance or a dedicated server: switching infrastructure = changing a URL.
@@ -33,8 +53,15 @@ interface RemoteJob {
  *   POST /v1/jobs/:id/cancel
  *   GET  /v1/jobs/:id/outputs/:n    → file
  */
-export class GpuClient {
-  private healthCache: { at: number; value: RemoteHealth | Error } | null = null;
+export class GpuClient implements GpuTransport {
+  private healthCache: { at: number; value: RemoteHealth | Error } | null =
+    null;
+  get id() {
+    return this.endpoint.id;
+  }
+  get label() {
+    return this.endpoint.id;
+  }
 
   constructor(
     readonly endpoint: GpuEndpointConfig,
@@ -43,7 +70,9 @@ export class GpuClient {
   ) {}
 
   private headers(): Record<string, string> {
-    const token = this.endpoint.tokenEnv ? this.env[this.endpoint.tokenEnv] : undefined;
+    const token = this.endpoint.tokenEnv
+      ? this.env[this.endpoint.tokenEnv]
+      : undefined;
     return token ? { authorization: `Bearer ${token}` } : {};
   }
 
@@ -57,20 +86,31 @@ export class GpuClient {
       return this.healthCache.value;
     }
     try {
-      const res = await fetch(this.url("/v1/health"), { headers: this.headers(), signal: AbortSignal.timeout(5000) });
+      const res = await fetch(this.url("/v1/health"), {
+        headers: this.headers(),
+        signal: AbortSignal.timeout(5000),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const value = (await res.json()) as RemoteHealth;
       this.healthCache = { at: Date.now(), value };
       return value;
     } catch (e) {
-      const err = new Error(`GPU endpoint "${this.endpoint.id}" unreachable: ${(e as Error).message}`);
+      const err = new Error(
+        `GPU endpoint "${this.endpoint.id}" unreachable: ${(e as Error).message}`,
+      );
       this.healthCache = { at: Date.now(), value: err };
       throw err;
     }
   }
 
   /** Submits a job, follows it to completion and downloads its outputs into ctx.workDir. */
-  async run(engine: string, operation: string, params: unknown, files: Record<string, string | undefined>, ctx: ProviderContext): Promise<ProviderOutput[]> {
+  async run(
+    engine: string,
+    operation: string,
+    params: unknown,
+    files: Record<string, string | undefined>,
+    ctx: ProviderContext,
+  ): Promise<ProviderOutput[]> {
     ctx.report("starting", 0.1, `Uploading inputs to ${this.endpoint.id}`);
     const form = new FormData();
     form.set("engine", engine);
@@ -82,20 +122,40 @@ export class GpuClient {
     }
     let created: Response;
     try {
-      created = await fetch(this.url("/v1/jobs"), { method: "POST", body: form, headers: this.headers(), signal: ctx.signal });
+      created = await fetch(this.url("/v1/jobs"), {
+        method: "POST",
+        body: form,
+        headers: this.headers(),
+        signal: ctx.signal,
+      });
     } catch (e) {
       if (ctx.signal.aborted) throw new AbortedError();
-      throw new ProviderError(`GPU endpoint ${this.endpoint.id} unreachable: ${(e as Error).message}`, "gpu_unreachable", true);
+      throw new ProviderError(
+        `GPU endpoint ${this.endpoint.id} unreachable: ${(e as Error).message}`,
+        "gpu_unreachable",
+        true,
+      );
     }
     if (!created.ok) {
       const body = await created.text();
-      throw new ProviderError(`GPU endpoint rejected the job (HTTP ${created.status}): ${body.slice(0, 500)}`, "gpu_rejected", created.status >= 500);
+      throw new ProviderError(
+        `GPU endpoint rejected the job (HTTP ${created.status}): ${body.slice(0, 500)}`,
+        "gpu_rejected",
+        created.status >= 500,
+      );
     }
     const { id: remoteId } = (await created.json()) as { id: string };
-    ctx.log("remote job submitted", { endpoint: this.endpoint.id, remoteId, engine });
+    ctx.log("remote job submitted", {
+      endpoint: this.endpoint.id,
+      remoteId,
+      engine,
+    });
 
     const cancelRemote = () => {
-      fetch(this.url(`/v1/jobs/${remoteId}/cancel`), { method: "POST", headers: this.headers() }).catch(() => {});
+      fetch(this.url(`/v1/jobs/${remoteId}/cancel`), {
+        method: "POST",
+        headers: this.headers(),
+      }).catch(() => {});
     };
     ctx.signal.addEventListener("abort", cancelRemote, { once: true });
     try {
@@ -105,27 +165,57 @@ export class GpuClient {
         await new Promise((r) => setTimeout(r, this.pollMs));
         if (ctx.signal.aborted) throw new AbortedError();
         try {
-          const res = await fetch(this.url(`/v1/jobs/${remoteId}`), { headers: this.headers(), signal: AbortSignal.timeout(10_000) });
+          const res = await fetch(this.url(`/v1/jobs/${remoteId}`), {
+            headers: this.headers(),
+            signal: AbortSignal.timeout(10_000),
+          });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           st = (await res.json()) as RemoteJob;
           failures = 0;
         } catch (e) {
-          if (++failures >= 15) throw new ProviderError(`Lost contact with GPU endpoint ${this.endpoint.id}: ${(e as Error).message}`, "gpu_lost", true);
+          if (++failures >= 15)
+            throw new ProviderError(
+              `Lost contact with GPU endpoint ${this.endpoint.id}: ${(e as Error).message}`,
+              "gpu_lost",
+              true,
+            );
           continue;
         }
-        if (st.status === "queued") ctx.report("starting", 0.4, st.stage ?? "Waiting for a GPU");
-        else if (st.status === "running") ctx.report("processing", st.progress ?? 0, st.stage);
-        else if (st.status === "failed") throw new ProviderError(st.error ?? "Remote generation failed", "gpu_job_failed", !!st.retryable);
+        if (st.status === "queued")
+          ctx.report("starting", 0.4, st.stage ?? "Waiting for a GPU");
+        else if (st.status === "running")
+          ctx.report("processing", st.progress ?? 0, st.stage);
+        else if (st.status === "failed")
+          throw new ProviderError(
+            st.error ?? "Remote generation failed",
+            "gpu_job_failed",
+            !!st.retryable,
+          );
         else if (st.status === "cancelled") throw new AbortedError();
         else if (st.status === "completed") break;
       }
       const outputs: ProviderOutput[] = [];
       for (const o of st.outputs?.length ? st.outputs : [{ index: 0 }]) {
-        const res = await fetch(this.url(`/v1/jobs/${remoteId}/outputs/${o.index}`), { headers: this.headers(), signal: ctx.signal });
-        if (!res.ok || !res.body) throw new ProviderError(`Could not download output ${o.index}: HTTP ${res.status}`, "gpu_download", true);
-        const ext = (o.mime ?? res.headers.get("content-type") ?? "").includes("video") ? "mp4" : "png";
+        const res = await fetch(
+          this.url(`/v1/jobs/${remoteId}/outputs/${o.index}`),
+          { headers: this.headers(), signal: ctx.signal },
+        );
+        if (!res.ok || !res.body)
+          throw new ProviderError(
+            `Could not download output ${o.index}: HTTP ${res.status}`,
+            "gpu_download",
+            true,
+          );
+        const ext = (o.mime ?? res.headers.get("content-type") ?? "").includes(
+          "video",
+        )
+          ? "mp4"
+          : "png";
         const out = path.join(ctx.workDir, `remote_${o.index}.${ext}`);
-        await pipeline(Readable.fromWeb(res.body as WebReadableStream), fs.createWriteStream(out));
+        await pipeline(
+          Readable.fromWeb(res.body as WebReadableStream),
+          fs.createWriteStream(out),
+        );
         outputs.push({ path: out, seed: o.seed ?? null });
       }
       ctx.report("processing", 1);

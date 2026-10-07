@@ -15,7 +15,12 @@ import { S3Storage } from "../storage/s3.js";
 import { ProviderRegistry } from "../providers/registry.js";
 import { MockImageProvider } from "../providers/mock/image.js";
 import { MockVideoProvider } from "../providers/mock/video.js";
-import { discoverRemoteProviders } from "../providers/remote/remote-provider.js";
+import {
+  agentProviders,
+  discoverRemoteProviders,
+} from "../providers/remote/remote-provider.js";
+import { AgentTransport } from "../providers/remote/agent-transport.js";
+import { GpuTasksRepo } from "../repos/gpu-tasks.js";
 import { hashPassword } from "../auth/password.js";
 import { BUILTIN_PRESETS } from "./presets.js";
 
@@ -56,6 +61,7 @@ export interface Services {
   settings: SettingsRepo;
   audit: AuditRepo;
   storage: StorageProvider;
+  gpuTasks: GpuTasksRepo;
   registry: ProviderRegistry;
   events: JobEvents;
   /** Set by the in-process worker so new jobs start without waiting for the next poll */
@@ -68,7 +74,10 @@ export function createStorage(config: Config): StorageProvider {
   return new LocalStorage(config.storage.root);
 }
 
-export async function createServices(config: Config, opts: { listen?: boolean } = {}): Promise<Services> {
+export async function createServices(
+  config: Config,
+  opts: { listen?: boolean } = {},
+): Promise<Services> {
   const pool = createPool(config.databaseUrl);
   await migrate(pool, (m) => logger.info(m));
   const media = new MediaRepo(pool);
@@ -79,7 +88,15 @@ export async function createServices(config: Config, opts: { listen?: boolean } 
     await registry.register(new MockImageProvider(config.mockMinSeconds));
     await registry.register(new MockVideoProvider(config.mockMinSeconds));
   }
-  for (const p of await discoverRemoteProviders(config.gpuEndpoints)) await registry.register(p);
+  for (const p of await discoverRemoteProviders(config.gpuEndpoints))
+    await registry.register(p);
+  const storage = createStorage(config);
+  const gpuTasks = new GpuTasksRepo(pool);
+  for (const p of agentProviders(
+    config.gpuAgents,
+    (a) => new AgentTransport(a, gpuTasks, storage),
+  ))
+    await registry.register(p);
 
   const users = new UsersRepo(pool);
   if (config.bootstrapAdmin && (await users.count()) === 0) {
@@ -89,7 +106,10 @@ export async function createServices(config: Config, opts: { listen?: boolean } 
       passwordHash: await hashPassword(config.bootstrapAdmin.password),
       role: "admin",
     });
-    logger.info({ email: config.bootstrapAdmin.email }, "bootstrap admin created");
+    logger.info(
+      { email: config.bootstrapAdmin.email },
+      "bootstrap admin created",
+    );
   }
   const presets = new PresetsRepo(pool);
   await presets.seedBuiltins(BUILTIN_PRESETS);
@@ -110,7 +130,8 @@ export async function createServices(config: Config, opts: { listen?: boolean } 
     providerSettings,
     settings,
     audit: new AuditRepo(pool),
-    storage: createStorage(config),
+    storage,
+    gpuTasks,
     registry,
     events,
     async close() {
