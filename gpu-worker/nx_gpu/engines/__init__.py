@@ -13,6 +13,8 @@ REAL_ENGINES = {
     "qwen-image": "qwen_image",
     "qwen-image-edit": "qwen_image",
     "ltx": "ltx",
+    "ltx-video": "ltx_video",
+    "wan-5b": "wan",
     "real-esrgan": "upscale",
 }
 

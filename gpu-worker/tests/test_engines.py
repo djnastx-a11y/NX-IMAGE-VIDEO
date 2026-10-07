@@ -23,13 +23,14 @@ from PIL import Image
 
 from nx_gpu.engines import build_engines
 from nx_gpu.engines.base import Cancelled, EngineError, JobContext
-from nx_gpu.engines import flux, ltx, qwen_image, upscale, wan
+from nx_gpu.engines import flux, ltx, ltx_video, qwen_image, upscale, wan
 
 # Accepted keyword arguments of each pipeline's __call__, extracted from diffusers 0.41.0.
 _COMMON = {"prompt", "negative_prompt", "prompt_embeds", "negative_prompt_embeds", "guidance_scale", "num_inference_steps", "width", "height", "generator", "latents", "output_type", "return_dict", "attention_kwargs", "callback_on_step_end", "callback_on_step_end_tensor_inputs", "max_sequence_length"}
 _QWEN = _COMMON | {"true_cfg_scale", "prompt_embeds_mask", "negative_prompt_embeds_mask", "num_images_per_prompt", "sigmas"}
 SIGNATURES = {
     "LTX2ConditionPipeline": _COMMON | {"conditions", "num_frames", "min_seconds", "max_seconds", "frame_rate", "sigmas", "timesteps", "stg_scale", "modality_scale", "guidance_rescale", "audio_guidance_scale", "audio_stg_scale", "audio_modality_scale", "audio_guidance_rescale", "spatio_temporal_guidance_blocks", "noise_scale", "num_videos_per_prompt", "audio_latents", "prompt_attention_mask", "negative_prompt_attention_mask", "decode_timestep", "decode_noise_scale", "use_cross_timestep", "system_prompt", "enable_prompt_enhancement", "prompt_max_new_tokens", "prompt_enhancement_kwargs", "prompt_enhancement_seed"},
+    "LTXConditionPipeline": _COMMON | {"conditions", "image", "video", "frame_index", "strength", "denoise_strength", "num_frames", "frame_rate", "timesteps", "guidance_rescale", "image_cond_noise_scale", "num_videos_per_prompt", "prompt_attention_mask", "negative_prompt_attention_mask", "decode_timestep", "decode_noise_scale"},
     "WanPipeline": _COMMON | {"num_frames", "guidance_scale_2", "num_videos_per_prompt"},
     "WanImageToVideoPipeline": _COMMON | {"num_frames", "guidance_scale_2", "num_videos_per_prompt", "image", "last_image", "image_embeds"},
     "QwenImagePipeline": _QWEN,
@@ -45,6 +46,7 @@ class FakeOOM(RuntimeError):
 
 
 calls: list[tuple[str, dict[str, Any]]] = []
+loads: list[str] = []
 behaviour: dict[str, Any] = {}
 
 
@@ -53,9 +55,11 @@ def fake_pipeline(name: str) -> type:
         config = types.SimpleNamespace(is_distilled=True)
 
         @classmethod
-        def from_pretrained(cls, model: str, torch_dtype: Any = None) -> "Pipe":
+        def from_pretrained(cls, model: str, torch_dtype: Any = None, **kw: Any) -> "Pipe":
             p = cls()
             p.model = model
+            p.loaded_with = {"torch_dtype": torch_dtype, **kw}
+            loads.append(name)
             return p
 
         @classmethod
@@ -63,6 +67,8 @@ def fake_pipeline(name: str) -> type:
             p = cls()
             p.model = other.model
             return p
+
+        vae = types.SimpleNamespace(enable_tiling=lambda: None)
 
         def enable_model_cpu_offload(self) -> None:
             pass
@@ -75,6 +81,8 @@ def fake_pipeline(name: str) -> type:
                 raise FakeOOM("CUDA out of memory. Tried to allocate 2.00 GiB")
             for i in range(kw["num_inference_steps"]):
                 kw["callback_on_step_end"](self, i, 1000 - i, {})
+            if name == "LTXConditionPipeline":
+                return types.SimpleNamespace(frames=np.random.rand(1, kw["num_frames"], 48, 64, 3).astype(np.float32))
             if name.startswith("LTX2"):
                 return np.random.rand(1, kw["num_frames"], 48, 64, 3).astype(np.float32), None
             if name.startswith("Wan"):
@@ -97,9 +105,12 @@ class VideoCondition:
 @pytest.fixture(autouse=True)
 def fake_stack(monkeypatch: pytest.MonkeyPatch) -> None:
     calls.clear()
+    loads.clear()
     behaviour.clear()
     torch = types.ModuleType("torch")
     torch.bfloat16 = "bf16"  # type: ignore[attr-defined]
+    torch.float16 = "fp16"  # type: ignore[attr-defined]
+    torch.float32 = "fp32"  # type: ignore[attr-defined]
     torch.cuda = types.SimpleNamespace(OutOfMemoryError=FakeOOM, is_available=lambda: False, empty_cache=lambda: None)  # type: ignore[attr-defined]
 
     class Gen:
@@ -114,6 +125,19 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> None:
     diffusers = types.ModuleType("diffusers")
     for name in SIGNATURES:
         setattr(diffusers, name, fake_pipeline(name))
+    diffusers.AutoencoderKLWan = types.SimpleNamespace(from_pretrained=lambda model, subfolder=None, torch_dtype=None: ("vae", model, torch_dtype))  # type: ignore[attr-defined]
+
+    @dataclass
+    class LtxCondition:
+        image: Any = None
+        video: Any = None
+        frame_index: int = 0
+        strength: float = 1.0
+
+    ltxv_mod = types.ModuleType("diffusers.pipelines.ltx.pipeline_ltx_condition")
+    ltxv_mod.LTXVideoCondition = LtxCondition  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "diffusers.pipelines.ltx", types.ModuleType("diffusers.pipelines.ltx"))
+    monkeypatch.setitem(sys.modules, "diffusers.pipelines.ltx.pipeline_ltx_condition", ltxv_mod)
     cond_mod = types.ModuleType("diffusers.pipelines.ltx2.pipeline_ltx2_condition")
     cond_mod.LTX2VideoCondition = VideoCondition  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "torch", torch)
@@ -227,6 +251,44 @@ def test_wan_image_and_first_last(tmp_path: Path) -> None:
     assert list(eng.pipes) == ["t2v"]  # only one checkpoint stays loaded
     with pytest.raises(EngineError):
         wan.plan("video_to_video", target, {"video"}, 40)
+
+
+# ----------------------------------------------------------------------------- 16 GB engines (Kaggle T4)
+
+
+def test_ltx_video_2b_image_to_video_10s_in_fp16(tmp_path: Path) -> None:
+    eng = build_engines("ltx-video")[0]
+    eng.load()
+    assert loads == ["LTXConditionPipeline"] and eng.pipe.loaded_with["torch_dtype"] == "fp16"  # no CUDA here -> fp16, as on a T4
+    ctx, _ = make_ctx(tmp_path, {"image": png(tmp_path, "src")})
+    [out] = eng.run("image_to_video", {**VIDEO_916_720, "prompt": "walk", "duration": 10, "camera": {"move": "pan_left", "intensity": 2}}, ctx)
+    name, kw = calls[-1]
+    assert name == "LTXConditionPipeline"
+    assert (kw["width"], kw["height"], kw["num_frames"], kw["frame_rate"]) == (704, 1280, 241, 24)
+    [c] = kw["conditions"]
+    assert c.frame_index == 0 and c.image.size == (704, 1280) and "slowly" in kw["prompt"]
+    meta = probe(out.path)
+    assert (meta["width"], meta["height"], meta["nb_frames"]) == (720, 1280, "241")
+    with pytest.raises(EngineError):
+        ltx_video.plan("image_to_video", VIDEO_916_720, set(), 40)
+
+
+def test_wan_5b_one_checkpoint_for_text_and_image(tmp_path: Path) -> None:
+    eng = build_engines("wan-5b")[0]
+    assert "first_last_frame" not in eng.capabilities
+    eng.load()
+    ctx, _ = make_ctx(tmp_path, {"image": png(tmp_path, "src")})
+    [out] = eng.run("image_to_video", {**VIDEO_916_720, "prompt": "smile", "duration": 5}, ctx)
+    name, kw = calls[-1]
+    assert name == "WanImageToVideoPipeline" and (kw["width"], kw["height"], kw["num_frames"]) == (704, 1280, 121)
+    assert probe(out.path)["r_frame_rate"] == "24/1"
+    ctx2, _ = make_ctx(tmp_path, {})
+    eng.run("text_to_video", {**VIDEO_916_720, "prompt": "city"}, ctx2)
+    assert calls[-1][0] == "WanPipeline"
+    assert loads == ["WanImageToVideoPipeline"]  # text-to-video reuses the loaded weights
+    assert eng.pipes["i2v"].loaded_with["vae"][2] == "fp32"
+    with pytest.raises(EngineError):
+        wan.plan("first_last_frame", VIDEO_916_720, {"image", "end_image"}, 30, wan.VARIANTS["wan-5b"])
 
 
 # ----------------------------------------------------------------------------- Qwen

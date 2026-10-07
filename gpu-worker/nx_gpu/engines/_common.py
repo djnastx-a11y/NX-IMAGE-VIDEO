@@ -159,9 +159,14 @@ def save_png(img: Image.Image, path: Path) -> Path:
 
 
 def torch_dtype() -> Any:
+    """bfloat16 where the GPU supports it natively (Ampere and later), float16 otherwise (T4, V100).
+    NX_GPU_DTYPE=bf16|fp16 forces one."""
     import torch
 
-    return torch.bfloat16
+    forced = env("NX_GPU_DTYPE", "")
+    if forced:
+        return torch.float16 if forced == "fp16" else torch.bfloat16
+    return torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported(including_emulation=False) else torch.float16
 
 
 def place(pipe: Any) -> Any:

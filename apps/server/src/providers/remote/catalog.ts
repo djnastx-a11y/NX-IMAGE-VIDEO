@@ -171,6 +171,22 @@ export const ENGINE_CATALOG: Record<string, EngineSpec> = {
       extend: 84,
     },
   },
+  "ltx-video": {
+    module: "video",
+    name: "LTX-Video 2B",
+    description: "Lightricks LTX-Video 0.9.5 (2B) : le petit LTX, fait pour les cartes de 16 Go (Kaggle gratuit). Image→vidéo, first/last frame, vidéo→vidéo, jusqu'à 10 s. Qualité nettement en dessous de LTX-2.5.",
+    capabilities: ["text_to_video", "image_to_video", "video_to_video", "first_last_frame", "keyframes", "extend", "camera_control", "negative_prompt", "seed"],
+    limits: { maxDuration: 10, durations: [5, 10], resolutions: ["480p", "720p"] },
+    quality: { text_to_video: 70, image_to_video: 72, video_to_video: 70, first_last_frame: 70, extend: 70 },
+  },
+  "wan-5b": {
+    module: "video",
+    name: "Wan 2.2 TI2V 5B",
+    description: "Alibaba Wan 2.2 5B (Apache-2.0) : tient sur 16 Go avec déchargement mémoire, 5 s à 24 i/s. Plus fidèle que LTX-Video 2B mais bien plus lent sur une carte gratuite.",
+    capabilities: ["text_to_video", "image_to_video", "extend", "camera_control", "negative_prompt", "seed"],
+    limits: { maxDuration: 5, durations: [5], resolutions: ["480p", "720p"] },
+    quality: { text_to_video: 74, image_to_video: 76, extend: 72 },
+  },
   hunyuan: {
     module: "video",
     name: "HunyuanVideo 1.5",

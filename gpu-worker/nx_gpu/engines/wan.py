@@ -1,12 +1,18 @@
-"""Wan 2.2 A14B (Alibaba, Apache-2.0) through diffusers.
+"""Wan 2.2 (Alibaba, Apache-2.0) through diffusers, in two sizes.
+
+wan (A14B, 48 GB GPUs):
 
   text_to_video     WanPipeline             (NX_WAN_T2V_MODEL, default Wan-AI/Wan2.2-T2V-A14B-Diffusers)
   image_to_video    WanImageToVideoPipeline (NX_WAN_I2V_MODEL, default Wan-AI/Wan2.2-I2V-A14B-Diffusers)
   first_last_frame  WanImageToVideoPipeline with last_image
   extend            NX STUDIO sends it as image_to_video from the last frame
 
-Wan renders about 5 s at 16 fps (81 frames). The two checkpoints are large, so only the one in use
+A14B renders about 5 s at 16 fps (81 frames). The two checkpoints are large, so only the one in use
 stays loaded unless NX_WAN_KEEP_BOTH=1. Steps: NX_WAN_STEPS (default 40).
+
+wan-5b (TI2V-5B, fits a 16 GB GPU with offload, e.g. Kaggle's T4): one checkpoint
+(NX_WAN5B_MODEL, default Wan-AI/Wan2.2-TI2V-5B-Diffusers) for text and image to video,
+5 s at 24 fps (121 frames), no first/last frame. Steps: NX_WAN5B_STEPS (default 30).
 """
 
 from __future__ import annotations
@@ -35,7 +41,20 @@ from .base import Engine, EngineError, JobContext, Output
 
 CAPABILITIES = ["text_to_video", "image_to_video", "first_last_frame", "extend", "camera_control", "negative_prompt", "seed"]
 LIMITS = {"maxDuration": 5, "durations": [5], "resolutions": ["480p", "720p"]}
-FPS = 16.0
+
+
+@dataclass(frozen=True)
+class Variant:
+    fps: float
+    multiple: int  # width/height granularity
+    frame_step: int  # frames = frame_step * k + 1
+    capabilities: tuple[str, ...]
+
+
+VARIANTS = {
+    "wan": Variant(fps=16.0, multiple=16, frame_step=4, capabilities=tuple(CAPABILITIES)),
+    "wan-5b": Variant(fps=24.0, multiple=32, frame_step=4, capabilities=tuple(c for c in CAPABILITIES if c != "first_last_frame")),
+}
 
 
 @dataclass
@@ -55,8 +74,10 @@ class Plan:
     last_image: str | None
 
 
-def plan(operation: str, params: dict[str, Any], files: set[str], steps: int) -> Plan:
-    out_w, out_h, w, h = target_size(params, 16)
+def plan(operation: str, params: dict[str, Any], files: set[str], steps: int, variant: Variant = VARIANTS["wan"]) -> Plan:
+    if operation not in variant.capabilities:
+        raise EngineError(f"This Wan model does not support '{operation}'")
+    out_w, out_h, w, h = target_size(params, variant.multiple)
     duration = float(max(1, min(LIMITS["maxDuration"], params.get("duration") or 5)))
     image = last = None
     if operation == "text_to_video":
@@ -84,7 +105,7 @@ def plan(operation: str, params: dict[str, Any], files: set[str], steps: int) ->
         height=h,
         out_width=out_w,
         out_height=out_h,
-        num_frames=frame_count(duration, FPS, 4),
+        num_frames=frame_count(duration, variant.fps, variant.frame_step),
         guidance_scale=round(scaled_guidance(params.get("promptAdherence"), 7.0, 5.0, 1.0, 10.0), 3),
         steps=steps,
         seed=resolve_seed(params.get("seed")),
@@ -95,9 +116,15 @@ def plan(operation: str, params: dict[str, Any], files: set[str], steps: int) ->
 
 class WanEngine(Engine):
     def __init__(self, engine_id: str):
-        super().__init__(id=engine_id, module="video", capabilities=list(CAPABILITIES), limits=dict(LIMITS))
-        self.models = {"t2v": env("NX_WAN_T2V_MODEL", "Wan-AI/Wan2.2-T2V-A14B-Diffusers"), "i2v": env("NX_WAN_I2V_MODEL", "Wan-AI/Wan2.2-I2V-A14B-Diffusers")}
-        self.steps = env_int("NX_WAN_STEPS", 40)
+        self.variant = VARIANTS[engine_id]
+        super().__init__(id=engine_id, module="video", capabilities=list(self.variant.capabilities), limits=dict(LIMITS))
+        if engine_id == "wan-5b":
+            model = env("NX_WAN5B_MODEL", "Wan-AI/Wan2.2-TI2V-5B-Diffusers")
+            self.models = {"t2v": model, "i2v": model}
+            self.steps = env_int("NX_WAN5B_STEPS", 30)
+        else:
+            self.models = {"t2v": env("NX_WAN_T2V_MODEL", "Wan-AI/Wan2.2-T2V-A14B-Diffusers"), "i2v": env("NX_WAN_I2V_MODEL", "Wan-AI/Wan2.2-I2V-A14B-Diffusers")}
+            self.steps = env_int("NX_WAN_STEPS", 40)
         self.keep_both = env("NX_WAN_KEEP_BOTH", "0") == "1"
         self.pipes: dict[str, Any] = {}
 
@@ -105,13 +132,19 @@ class WanEngine(Engine):
         if kind in self.pipes:
             return self.pipes[kind]
         import torch
-        from diffusers import WanImageToVideoPipeline, WanPipeline
+        from diffusers import AutoencoderKLWan, WanImageToVideoPipeline, WanPipeline
 
+        cls = WanImageToVideoPipeline if kind == "i2v" else WanPipeline
+        if self.models["t2v"] == self.models["i2v"] and self.pipes:
+            # one checkpoint for both (TI2V-5B): share the loaded weights
+            self.pipes[kind] = cls.from_pipe(next(iter(self.pipes.values())))
+            return self.pipes[kind]
         if not self.keep_both and self.pipes:
             self.pipes.clear()
             torch.cuda.empty_cache()
-        cls = WanImageToVideoPipeline if kind == "i2v" else WanPipeline
-        self.pipes[kind] = place(cls.from_pretrained(self.models[kind], torch_dtype=torch_dtype()))
+        # the Wan VAE is kept in float32, as in the reference examples
+        vae = AutoencoderKLWan.from_pretrained(self.models[kind], subfolder="vae", torch_dtype=torch.float32)
+        self.pipes[kind] = place(cls.from_pretrained(self.models[kind], vae=vae, torch_dtype=torch_dtype()))
         return self.pipes[kind]
 
     def load(self) -> None:
@@ -119,7 +152,7 @@ class WanEngine(Engine):
         self.loaded = True
 
     def run(self, operation: str, params: dict[str, Any], ctx: JobContext) -> list[Output]:
-        p = plan(operation, params, set(ctx.files), self.steps)
+        p = plan(operation, params, set(ctx.files), self.steps, self.variant)
         ctx.progress(0.0, "Loading model" if p.pipeline not in self.pipes else "Generating")
         with gpu_errors():
             pipe = self._pipe(p.pipeline)
@@ -140,7 +173,7 @@ class WanEngine(Engine):
             if p.last_image:
                 kwargs["last_image"] = fit_cover(load_rgb(ctx.file(p.last_image)), p.width, p.height)  # type: ignore[arg-type]
             frames = pipe(**kwargs).frames
-        out = write_video(frames, FPS, ctx.work_dir / "out.mp4", p.out_width, p.out_height)
+        out = write_video(frames, self.variant.fps, ctx.work_dir / "out.mp4", p.out_width, p.out_height)
         return [Output(path=out, seed=p.seed, mime="video/mp4")]
 
 

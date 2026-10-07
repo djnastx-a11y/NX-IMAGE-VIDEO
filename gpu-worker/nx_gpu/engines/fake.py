@@ -20,6 +20,8 @@ from .base import Engine, EngineError, JobContext, Output
 FAKE_SPECS: dict[str, tuple[str, list[str], dict[str, Any]]] = {
     "wan": ("video", ["text_to_video", "image_to_video", "first_last_frame", "extend", "camera_control", "negative_prompt", "seed"], {"maxDuration": 5, "durations": [5], "resolutions": ["480p", "720p"]}),
     "ltx": ("video", ["text_to_video", "image_to_video", "video_to_video", "first_last_frame", "keyframes", "extend", "camera_control", "negative_prompt", "seed", "fps"], {"maxDuration": 20, "durations": [5, 10, 15, 20], "resolutions": ["480p", "720p", "1080p"]}),
+    "ltx-video": ("video", ["text_to_video", "image_to_video", "video_to_video", "first_last_frame", "keyframes", "extend", "camera_control", "negative_prompt", "seed"], {"maxDuration": 10, "durations": [5, 10], "resolutions": ["480p", "720p"]}),
+    "wan-5b": ("video", ["text_to_video", "image_to_video", "extend", "camera_control", "negative_prompt", "seed"], {"maxDuration": 5, "durations": [5], "resolutions": ["480p", "720p"]}),
     "hunyuan": ("video", ["text_to_video", "image_to_video", "negative_prompt", "seed"], {"maxDuration": 5, "resolutions": ["480p", "720p"]}),
     "flux": ("image", ["text_to_image", "image_to_image", "edit", "variation", "seed", "guidance", "steps", "custom_size", "multi_output", "reference_image", "multi_reference", "style_reference"], {"maxOutputs": 4}),
     "qwen-image": ("image", ["text_to_image", "image_to_image", "variation", "negative_prompt", "seed", "guidance", "steps", "custom_size", "multi_output"], {"maxOutputs": 4}),

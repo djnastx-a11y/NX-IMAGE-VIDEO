@@ -1,0 +1,8 @@
+# Kaggle notebooks already ship PyTorch with CUDA: keep it, install only the rest.
+# Same engine stack as requirements-gpu.txt (API checked against diffusers 0.41.0).
+diffusers==0.41.0
+transformers>=5.0
+accelerate>=1.10
+safetensors>=0.8
+sentencepiece>=0.2
+spandrel>=0.4

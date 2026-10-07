@@ -13,7 +13,7 @@ Studio privé de génération et d'édition d'images et de vidéos par IA, en de
 
 Les deux modules partagent la bibliothèque de médias, l'historique, les projets, les presets, la file d'attente avec progression en direct et l'administration. Le bouton **Animate in NX VIDEO** envoie une image de NX IMAGE vers NX VIDEO.
 
-NX STUDIO ne dépend d'aucun moteur. Les moteurs (Wan, LTX, FLUX, Qwen…) sont des *providers* interchangeables. Ils tournent sur une machine GPU séparée qui parle le **protocole NX GPU** : PC local, RunPod, Vast.ai ou serveur dédié. Les moteurs de test (mocks) produisent de vrais fichiers PNG et MP4 sans GPU, ce qui permet de tout tester.
+NX STUDIO ne dépend d'aucun moteur. Les moteurs (Wan, LTX, FLUX, Qwen…) sont des *providers* interchangeables. Ils tournent sur une machine GPU séparée qui parle le **protocole NX GPU** : PC local, RunPod, Vast.ai, serveur dédié, ou gratuitement sur **Kaggle**, dont la session se connecte elle-même à NX STUDIO (voir [docs/GPU_WORKERS.md](docs/GPU_WORKERS.md#gpu-gratuit--kaggle-mode-agent)). Les moteurs de test (mocks) produisent de vrais fichiers PNG et MP4 sans GPU, ce qui permet de tout tester.
 
 ## Démarrage rapide (Docker)
 
@@ -39,7 +39,7 @@ npm run dev                  # API sur :8787 et interface Vite sur :5173
 
 | Commande | Ce qui est testé |
 |---|---|
-| `npm test` | 14 tests unitaires (paramètres, tailles, compréhension des instructions d'édition) et 34 tests d'intégration sur un vrai PostgreSQL : auth, projets, uploads, chaque opération image et vidéo, file, statuts, retry, annulation, historique, bibliothèque, presets, admin, plus la chaîne GPU distante complète contre le serveur GPU Python |
+| `npm test` | 14 tests unitaires (paramètres, tailles, compréhension des instructions d'édition) et 41 tests d'intégration sur un vrai PostgreSQL : auth, projets, uploads, chaque opération image et vidéo, file, statuts, retry, annulation, historique, bibliothèque, presets, admin, plus la chaîne GPU distante complète contre le serveur GPU Python, en mode serveur et en mode agent |
 | `cd gpu-worker && pytest` | Le serveur GPU : protocole, authentification, sorties, échecs, annulation, et le câblage des moteurs réels (LTX, Wan, Qwen, FLUX, Real-ESRGAN) contre les signatures exactes de diffusers |
 | `npm run e2e:server` puis `npm run e2e` | 7 parcours dans un vrai navigateur, sur desktop et sur téléphone, dont le parcours complet image → Animate → vidéo 10 s 9:16 → bibliothèque → téléchargement, variation, extend |
 
@@ -61,4 +61,5 @@ npm run dev                  # API sur :8787 et interface Vite sur :5173
 |---|---|
 | Application complète avec les moteurs de test | Vérifiée : tests automatisés et navigateur, en local et sous Docker Compose |
 | Chaîne NX STUDIO → serveur GPU → résultats | Vérifiée avec les moteurs « fake » du serveur GPU |
-| Moteurs IA réels (LTX-2.5, Wan 2.2, Qwen-Image-Edit, FLUX.2, Real-ESRGAN) | Écrits, testés sans GPU, image Docker construite. Reste à les lancer et les mesurer sur une vraie machine GPU, voir [docs/GPU_WORKERS.md](docs/GPU_WORKERS.md#ce-qui-est-vérifié-et-ce-qui-ne-lest-pas-encore) |
+| Agent GPU (Kaggle) | Chaîne vérifiée avec les moteurs « fake ». Notebook Kaggle écrit, pas encore lancé sur Kaggle |
+| Moteurs IA réels (LTX-2.5, LTX-Video 2B, Wan 2.2 A14B et 5B, Qwen-Image-Edit, FLUX.2, Real-ESRGAN) | Écrits, testés sans GPU, image Docker construite. Reste à les lancer et les mesurer sur une vraie machine GPU, voir [docs/GPU_WORKERS.md](docs/GPU_WORKERS.md#ce-qui-est-vérifié-et-ce-qui-ne-lest-pas-encore) |

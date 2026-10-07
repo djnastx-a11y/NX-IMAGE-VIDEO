@@ -46,10 +46,12 @@ Toutes les variables se lisent au démarrage du serveur (`apps/server/src/config
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `NX_ENABLE_MOCK` | `true` | Moteurs de test, sans GPU |
+| `NX_ENABLE_MOCK` | `true` | Moteurs de test, sans GPU. Mettre `false` en usage réel pour ne jamais obtenir de résultat factice |
 | `NX_MOCK_MIN_SECONDS` | `4` | Durée minimale simulée d'une génération de test |
 | `NX_GPU_ENDPOINTS` | vide | Tableau JSON des serveurs GPU : `[{"id":"runpod-1","url":"https://…","tokenEnv":"NX_GPU_TOKEN_RUNPOD1","engines":["ltx","wan"]}]`. `engines` est optionnel : s'il manque, les moteurs sont découverts via `/v1/health` |
 | `NX_GPU_TOKEN_…` | — | Le jeton de chaque serveur GPU, dans la variable nommée par `tokenEnv` |
+| `NX_GPU_AGENTS` | vide | Tableau JSON des agents GPU (mode agent, par exemple Kaggle) : `[{"id":"kaggle","tokenEnv":"NX_GPU_AGENT_TOKEN_KAGGLE","engines":["ltx-video","flux","real-esrgan"]}]`. `engines` est obligatoire. Voir [GPU_WORKERS](GPU_WORKERS.md#gpu-gratuit--kaggle-mode-agent) |
+| `NX_GPU_AGENT_TOKEN_…` | — | Le jeton de chaque agent, dans la variable nommée par `tokenEnv` |
 
 ## Sécurité
 
@@ -71,4 +73,6 @@ Toutes les variables se lisent au démarrage du serveur (`apps/server/src/config
 | `NX_GPU_MAX_UPLOAD_MB` | `500` | Taille maximale d'une requête |
 | `NX_GPU_PRELOAD` | `1` | Charger les modèles au démarrage (`0` : au premier job) |
 | `NX_FAKE_SECONDS` | `2` | Durée des moteurs de test |
-| `NX_GPU_OFFLOAD`, `NX_LTX_*`, `NX_WAN_*`, `NX_QWEN_*`, `NX_FLUX_*`, `NX_ESRGAN_*` | — | Réglages des moteurs réels, voir [GPU_WORKERS](GPU_WORKERS.md#réglages) |
+| `NX_URL`, `NX_GPU_AGENT_TOKEN` | — | Mode agent (`python -m nx_gpu.agent`) : adresse de NX STUDIO et jeton de l'agent |
+| `NX_GPU_DTYPE` | automatique | `bfloat16` ou `float16` ; choisi selon la carte |
+| `NX_GPU_OFFLOAD`, `NX_LTX_*`, `NX_LTXV_*`, `NX_WAN_*`, `NX_WAN5B_*`, `NX_QWEN_*`, `NX_FLUX_*`, `NX_ESRGAN_*` | — | Réglages des moteurs réels, voir [GPU_WORKERS](GPU_WORKERS.md#réglages) |
