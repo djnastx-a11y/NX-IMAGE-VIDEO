@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const obj = JSON.parse(readFileSync(new URL('../presets/nx_motion_formats.json', import.meta.url), 'utf8'));
+assert.equal(obj.schema_version, 1);
+const story = obj.formats.story_9_16;
+const tv = obj.formats.tv_16_9;
+assert.deepEqual([story.width, story.height, story.ratio, story.fps], [1080, 1920, '9:16', 30]);
+assert.deepEqual([tv.width, tv.height, tv.ratio, tv.fps], [1920, 1080, '16:9', 30]);
+assert.equal(obj.policy.use_original_brand_assets, true);
+assert.equal(obj.policy.allow_auto_publish, false);
+assert.equal(obj.policy.allow_gpu_provider_replacement, false);
+console.log('NX motion presets: pass');
