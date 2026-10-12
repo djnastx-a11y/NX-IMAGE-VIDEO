@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "formats": {
+    "story_9_16": { "width": 1080, "height": 1920, "ratio": "9:16", "container": "mp4", "fps": 30 },
+    "tv_16_9": { "width": 1920, "height": 1080, "ratio": "16:9", "container": "mp4", "fps": 30 }
+  },
+  "policy": { "use_original_brand_assets": true, "allow_auto_publish": false, "allow_gpu_provider_replacement": false }
+}
