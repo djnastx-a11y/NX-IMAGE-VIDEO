@@ -7,8 +7,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const OPENMONTAGE_UPSTREAM = "https://github.com/calesthio/OpenMontage.git";
@@ -19,12 +18,12 @@ export const OPENMONTAGE_HOME = join(NX_REPOSITORY_ROOT, ".nx", "openmontage");
 const REQUIRED = ["LICENSE", "AGENT_GUIDE.md", "pipeline_defs", "backlot", "tools", "remotion-composer"];
 const WINDOWS = process.platform === "win32";
 
-function command(name, args, cwd) {
-  return spawnSync(name, args, { cwd, encoding: "utf8", shell: false, timeout: 120_000, maxBuffer: 2_000_000 });
+function command(name, args, cwd, timeout = 120_000) {
+  return spawnSync(name, args, { cwd, encoding: "utf8", shell: false, timeout, maxBuffer: 2_000_000 });
 }
 
-function mustRun(name, args, cwd) {
-  const result = command(name, args, cwd);
+function mustRun(name, args, cwd, timeout) {
+  const result = command(name, args, cwd, timeout);
   if (result.error || result.status !== 0) {
     const detail = String(result.error?.message || result.stderr || result.stdout || "unknown error").slice(0, 1500);
     throw new Error(name + " failed: " + detail);
@@ -102,7 +101,7 @@ export function setupDependencies() {
   const state = doctor();
   if (!state.readyForSetup) throw new Error("Run --fetch and --doctor first; required source or system dependencies are missing.");
   // Explicit step only. Installs upstream Python/npm packages, never configures billable provider keys.
-  mustRun("make", ["setup"], OPENMONTAGE_HOME);
+  mustRun("make", ["setup"], OPENMONTAGE_HOME, 1_200_000);
   return { setupAttempted: true, engineRevision: OPENMONTAGE_COMMIT, paidProvidersEnabled: false };
 }
 
