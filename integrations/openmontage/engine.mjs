@@ -65,7 +65,7 @@ export function doctor() {
     engine: "OpenMontage",
     upstream: OPENMONTAGE_UPSTREAM,
     pinnedRevision: OPENMONTAGE_COMMIT,
-    engine,
+    engineStatus: engine,
     prerequisites: tools,
     readyForSetup: engine.revisionPinned && engine.filesComplete && tools.node && tools.python && tools.ffmpeg && tools.make,
     readyForProduction: false,
