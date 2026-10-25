@@ -30,3 +30,13 @@ jobs:
         run: node --test integrations/openmontage/engine.test.mjs
       - name: Print doctor, no network or secrets
         run: node integrations/openmontage/engine.mjs --doctor
+      - name: Fetch the real pinned OpenMontage source (no install)
+        run: node integrations/openmontage/engine.mjs --fetch
+      - name: Prove upstream checkout and license are present
+        run: |
+          node --input-type=module -e "
+            import { inspectEngine, OPENMONTAGE_COMMIT } from './integrations/openmontage/engine.mjs';
+            const engine = inspectEngine();
+            if (!engine.filesComplete || engine.revision !== OPENMONTAGE_COMMIT) process.exit(1);
+            console.log('OpenMontage source pinned and complete:', engine.revision);
+          "
