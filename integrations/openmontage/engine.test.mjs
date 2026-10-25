@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   NX_REPOSITORY_ROOT,
   OPENMONTAGE_COMMIT,
@@ -21,7 +21,7 @@ test("OpenMontage upstream is pinned to an immutable commit, not latest", () => 
 
 test("doctor is read only, machine parseable and never claims a render has been tested", () => {
   const before = existsSync(OPENMONTAGE_HOME);
-  const data = JSON.parse(execFileSync(process.execPath, [resolve("integrations/openmontage/engine.mjs"), "--doctor"], {
+  const data = JSON.parse(execFileSync(process.execPath, [join(NX_REPOSITORY_ROOT, "integrations", "openmontage", "engine.mjs"), "--doctor"], {
     cwd: NX_REPOSITORY_ROOT, encoding: "utf8", timeout: 20_000,
   }));
   assert.equal(data.product, "NX Studio");
