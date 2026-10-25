@@ -1,0 +1,60 @@
+name: NX STUDIO CI
+
+# Tests only (no deploy, no secret, no GPU, no paid API): shared schemas, typecheck + builds, server suite against a throwaway Postgres
+# WITH the Python agent and its fake engines (otherwise 14 integration tests skip silently), and the GPU worker's pytest suite.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nx
+          POSTGRES_PASSWORD: nx
+          POSTGRES_DB: nxstudio_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nx" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL_TEST: postgres://nx:nx@127.0.0.1:5432/nxstudio_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg
+      - name: Python agent for the server integration tests (fake engines only)
+        working-directory: gpu-worker
+        run: python -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+
+  gpu-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gpu-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg
+      - run: pip install -q -r requirements-dev.txt
+      - run: python -m pytest -q
