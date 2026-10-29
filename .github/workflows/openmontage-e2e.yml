@@ -53,3 +53,11 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Authenticated API to original Remotion render to private library
         run: npm test --workspace @nx/server -- openmontage-e2e.test.ts
+      - name: Publish synthetic custom-scene MP4 (no personal data)
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: nx-studio-openmontage-authenticated-e2e
+          path: /tmp/nx-openmontage-custom-e2e.mp4
+          if-no-files-found: error
+          retention-days: 7
