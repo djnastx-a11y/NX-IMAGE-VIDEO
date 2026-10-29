@@ -8,9 +8,10 @@ const NAV: { to: string; label: string; icon: IconName; mobile?: boolean }[] = [
   { to: "/", label: "Generate", icon: "sparkles", mobile: true },
   { to: "/image", label: "NX Image", icon: "image", mobile: true },
   { to: "/video", label: "NX Video", icon: "video", mobile: true },
+  { to: "/montage", label: "NX Montage", icon: "film", mobile: true },
   { to: "/library", label: "Library", icon: "grid", mobile: true },
   { to: "/projects", label: "Projects", icon: "folder" },
-  { to: "/history", label: "History", icon: "clock", mobile: true },
+  { to: "/history", label: "History", icon: "clock" },
   { to: "/models", label: "Models", icon: "cpu" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
