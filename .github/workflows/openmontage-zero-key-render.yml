@@ -33,8 +33,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
+      - name: Install ffprobe and FFmpeg for media verification
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
       - name: Check installed render prerequisites
         run: |
+          set -euo pipefail
           node --version
           python3 --version
           ffmpeg -version | head -1
