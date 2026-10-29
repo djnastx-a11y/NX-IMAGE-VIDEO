@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client, startHarness, type Harness } from "./helpers.js";
 
@@ -58,5 +59,6 @@ describe("real OpenMontage authenticated preview E2E", () => {
     const result = await owner.req("GET", "/api/media/" + mediaId + "/file", undefined, 200);
     expect(result.raw.subarray(4,8).toString("ascii")).toBe("ftyp");
     expect(result.raw.byteLength).toBeGreaterThan(1000);
+    fs.writeFileSync("/tmp/nx-openmontage-custom-e2e.mp4", result.raw);
   }, 150_000);
 });
