@@ -1,0 +1,46 @@
+name: NX Studio OpenMontage container validation
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile.openmontage'
+      - 'compose.openmontage.yml'
+      - '.github/workflows/nx-montage-container.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build isolated NX Studio + pinned OpenMontage image
+        run: docker build -f Dockerfile.openmontage -t nx-studio:om-ci .
+      - name: Prove source, runtime, browser and binaries
+        run: |
+          docker run --rm --entrypoint /bin/sh nx-studio:om-ci -c '
+            set -eu
+            test "$(git -C /opt/openmontage rev-parse HEAD)" = "e01dbf433f46eeb91d39bf905e194162921019a3"
+            test -x /opt/openmontage/remotion-composer/node_modules/.bin/remotion
+            ffmpeg -version | head -1
+            chromium --version
+            node --version
+          '
+      - name: Render original OpenMontage preview with local Chromium (network disabled)
+        run: |
+          docker run --rm --network none --shm-size=1g --entrypoint /bin/sh nx-studio:om-ci -c '
+            set -eu
+            cd /opt/openmontage/remotion-composer
+            mkdir -p /tmp/nx-render
+            ./node_modules/.bin/remotion render src/index.tsx Explainer /tmp/nx-render/inside-container.mp4 \
+              --props public/demo-props/focusflow-pitch.json \
+              --codec h264 --scale 0.25 --frames 0-29 --concurrency 1 \
+              --browser-executable /usr/bin/chromium
+            test -s /tmp/nx-render/inside-container.mp4
+            ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1 /tmp/nx-render/inside-container.mp4
+          '
