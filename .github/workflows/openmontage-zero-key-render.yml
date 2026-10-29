@@ -1,0 +1,76 @@
+name: NX Studio / OpenMontage real zero-key render
+on:
+  pull_request:
+    paths:
+      - 'integrations/openmontage/**'
+      - '.github/workflows/openmontage-zero-key-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nx-openmontage-zero-key-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render-real-mp4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Never run arbitrary code from external PR forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      CI: true
+      OPENAI_API_KEY: ''
+      ANTHROPIC_API_KEY: ''
+      FAL_KEY: ''
+      FAL_API_KEY: ''
+      REPLICATE_API_TOKEN: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Check installed render prerequisites
+        run: |
+          node --version
+          python3 --version
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+      - name: Fetch original pinned OpenMontage source
+        run: |
+          node integrations/openmontage/engine.mjs --fetch
+          node integrations/openmontage/engine.mjs --doctor
+      - name: Install original Remotion composer (zero API keys)
+        working-directory: .nx/openmontage/remotion-composer
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Render original OpenMontage zero-key demo
+        run: |
+          cd .nx/openmontage
+          python3 render_demo.py focusflow-pitch
+      - name: Prove an actual playable H.264 MP4 exists
+        run: |
+          set -euo pipefail
+          f=".nx/openmontage/projects/demos/renders/focusflow-pitch.mp4"
+          test -s "$f"
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -show_entries format=duration -of json "$f" | tee /tmp/nx-openmontage-proof.json
+          python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/nx-openmontage-proof.json'))
+          video=d['streams'][0]
+          assert video['codec_name']=='h264', video
+          assert video['width']>0 and video['height']>0, video
+          assert float(d['format']['duration'])>1, d
+          print('NX Studio / original OpenMontage real video: verified')
+          PY
+      - name: Publish demo video and technical proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: nx-studio-openmontage-real-demo
+          path: |
+            .nx/openmontage/projects/demos/renders/focusflow-pitch.mp4
+            /tmp/nx-openmontage-proof.json
+          if-no-files-found: error
+          retention-days: 7
