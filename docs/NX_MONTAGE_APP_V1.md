@@ -50,3 +50,17 @@ Le `--doctor` natif vérifie les sources et prérequis OpenMontage sans prétend
 6. Ne pas publier ni activer de fournisseur vidéo IA payant sans autorisation précise.
 
 Cette PR n'active aucun nouvel abonnement, aucune requête client externe et aucun déploiement de production.
+
+## Image serveur autonome (recette uniquement)
+Une variante isolée est préparée :
+- `Dockerfile.openmontage` : assemble l'interface, l'API, PostgreSQL à part, les sources OpenMontage épinglées, FFmpeg et Chromium.
+- `compose.openmontage.yml` : base PostgreSQL et volumes persistants; port HTTP lié **uniquement à 127.0.0.1**.
+
+```bash
+# Dans le dossier NX-IMAGE-VIDEO, avec .env local et POSTGRES_PASSWORD défini :
+docker compose -f compose.openmontage.yml up -d --build
+docker compose -f compose.openmontage.yml ps
+# localhost seulement : pour le Samsung, mettre un reverse proxy HTTPS devant.
+```
+
+Le pilote n'active aucun service d'inférence payant. Vérifier l'usage mémoire/disque et l'accès HTTPS avant de créer une VM. L'image Docker doit être passée par la CI et un test réel sur le serveur de destination avant toute annonce de disponibilité mobile.
