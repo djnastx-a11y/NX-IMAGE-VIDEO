@@ -39,7 +39,8 @@ COPY --from=nx-build /app/apps/server/package.json apps/server/
 COPY --from=nx-build /app/apps/server/dist apps/server/dist
 COPY --from=nx-build /app/apps/web/dist apps/web/dist
 COPY --from=openmontage /opt/openmontage /opt/openmontage
-RUN useradd --system --uid 1001 --create-home nx && mkdir -p /data && chown nx:nx /data
+RUN git config --system --add safe.directory /opt/openmontage \
+  && useradd --system --uid 1001 --create-home nx && mkdir -p /data && chown nx:nx /data
 USER nx
 VOLUME /data
 EXPOSE 8787
