@@ -57,7 +57,7 @@ jobs:
           mkdir -p ../projects/demos/renders
           npx --no-install remotion render src/index.tsx Explainer ../projects/demos/renders/focusflow-pitch.mp4 \
             --props public/demo-props/focusflow-pitch.json \
-            --codec h264 --scale 0.25 --frames 0-89 --concurrency 2
+            --codec h264 --scale 0.25 --concurrency 2
       - name: Prove an actual playable H.264 MP4 exists
         run: |
           set -euo pipefail
