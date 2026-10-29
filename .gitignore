@@ -14,3 +14,6 @@ e2e/.shots/
 e2e/.fixtures/
 test-results/
 playwright-report/
+
+# External OpenMontage engine fetched at a verified revision; keep its media, credentials and cache out of Git.
+.nx/

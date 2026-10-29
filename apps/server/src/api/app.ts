@@ -26,6 +26,7 @@ import { presetRoutes } from "./routes/presets.js";
 import { providerRoutes } from "./routes/providers.js";
 import { adminRoutes } from "./routes/admin.js";
 import { eventRoutes } from "./routes/events.js";
+import { openMontageRoutes } from "./routes/openmontage.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -144,6 +145,7 @@ export async function buildApp(s: Services): Promise<FastifyInstance> {
   await app.register(async (r) => providerRoutes(r, ctx));
   await app.register(async (r) => adminRoutes(r, ctx));
   await app.register(async (r) => eventRoutes(r, ctx));
+  await app.register(async (r) => openMontageRoutes(r, ctx));
   await app.register(async (r) => gpuAgentRoutes(r, ctx));
 
   // Single-page web app (built by apps/web) served by the same process.

@@ -1,0 +1,62 @@
+# Isolated single-host NX Studio + original OpenMontage test stack.
+# Run with: docker compose -f compose.openmontage.yml up -d --build
+# Reverse proxy with HTTPS is REQUIRED for use from a phone outside localhost.
+# Do NOT expose the port publicly or point this at the Carlton production host.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in an untracked .env}
+      POSTGRES_DB: nxstudio
+    volumes:
+      - nx_montage_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nx -d nxstudio"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.openmontage
+    image: nx-studio:openmontage-staging
+    env_file: .env
+    environment:
+      NX_ROLE: api
+      NODE_ENV: production
+      DATABASE_URL: postgres://nx:${POSTGRES_PASSWORD}@db:5432/nxstudio
+      NX_OPENMONTAGE_ENABLED: "true"
+      NX_OPENMONTAGE_HOME: /opt/openmontage
+      NX_REMOTION_BROWSER: /usr/bin/chromium
+      COOKIE_SECURE: "true"
+    ports:
+      - "127.0.0.1:${NX_PORT:-8787}:8787"
+    volumes:
+      - nx_montage_media:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: nx-studio:openmontage-staging
+    env_file: .env
+    environment:
+      NX_ROLE: worker
+      NODE_ENV: production
+      DATABASE_URL: postgres://nx:${POSTGRES_PASSWORD}@db:5432/nxstudio
+      NX_OPENMONTAGE_ENABLED: "false"
+    volumes:
+      - nx_montage_media:/data
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+
+volumes:
+  nx_montage_pg:
+  nx_montage_media:
