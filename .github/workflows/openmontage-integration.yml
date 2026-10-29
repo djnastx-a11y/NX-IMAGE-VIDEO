@@ -1,0 +1,31 @@
+name: NX Studio OpenMontage isolated checks
+on:
+  pull_request:
+    paths:
+      - 'integrations/openmontage/**'
+      - '.claude/skills/**'
+      - 'tests/openmontage_bootstrap.test.mjs'
+      - '.github/workflows/openmontage-integration.yml'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: node --check integrations/openmontage/engine.mjs && node --check tests/openmontage_bootstrap.test.mjs
+      - name: Offline bootstrap contract tests
+        run: node --test tests/openmontage_bootstrap.test.mjs
+      - name: Doctor (no network, no install)
+        run: node integrations/openmontage/engine.mjs --doctor
