@@ -1,0 +1,55 @@
+name: NX Studio OpenMontage authenticated E2E
+on:
+  pull_request:
+    paths:
+      - 'apps/server/test/openmontage-e2e.test.ts'
+      - '.github/workflows/openmontage-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  user-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: nx
+          POSTGRES_PASSWORD: nx-ci-only-password
+          POSTGRES_DB: nxstudio_test
+        options: >-
+          --health-cmd "pg_isready -U nx -d nxstudio_test" --health-interval 5s
+          --health-timeout 5s --health-retries 15
+    env:
+      CI: true
+      DATABASE_URL_TEST: postgres://nx:nx-ci-only-password@127.0.0.1:5432/nxstudio_test
+      OPENAI_API_KEY: ''
+      ANTHROPIC_API_KEY: ''
+      FAL_KEY: ''
+      REPLICATE_API_TOKEN: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install project and system dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Checkout exact original OpenMontage commit
+        run: node integrations/openmontage/engine.mjs --fetch
+      - name: Install Remotion composer without paid providers
+        working-directory: .nx/openmontage/remotion-composer
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Authenticated API to original Remotion render to private library
+        run: npm test --workspace @nx/server -- openmontage-e2e.test.ts
