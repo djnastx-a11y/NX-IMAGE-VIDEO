@@ -46,19 +46,22 @@ jobs:
       - name: Install original Remotion composer (zero API keys)
         working-directory: .nx/openmontage/remotion-composer
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Render original OpenMontage zero-key demo
+      - name: Render original OpenMontage zero-key composition (fast smoke)
+        working-directory: .nx/openmontage/remotion-composer
         run: |
-          cd .nx/openmontage
-          python3 render_demo.py focusflow-pitch
+          mkdir -p ../projects/demos/renders
+          npx --no-install remotion render src/index.tsx Explainer ../projects/demos/renders/focusflow-pitch.mp4 \
+            --props public/demo-props/focusflow-pitch.json \
+            --codec h264 --scale 0.25 --concurrency 2
       - name: Prove an actual playable H.264 MP4 exists
         run: |
           set -euo pipefail
           f=".nx/openmontage/projects/demos/renders/focusflow-pitch.mp4"
           test -s "$f"
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -show_entries format=duration -of json "$f" | tee /tmp/nx-openmontage-proof.json
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -show_entries format=duration -of json "$f" | tee .nx/openmontage/projects/demos/renders/verify.json
           python3 - <<'PY'
           import json, os
-          d=json.load(open('/tmp/nx-openmontage-proof.json'))
+          d=json.load(open('.nx/openmontage/projects/demos/renders/verify.json'))
           video=d['streams'][0]
           assert video['codec_name']=='h264', video
           assert video['width']>0 and video['height']>0, video
@@ -71,6 +74,6 @@ jobs:
           name: nx-studio-openmontage-real-demo
           path: |
             .nx/openmontage/projects/demos/renders/focusflow-pitch.mp4
-            /tmp/nx-openmontage-proof.json
+            .nx/openmontage/projects/demos/renders/verify.json
           if-no-files-found: error
           retention-days: 7
