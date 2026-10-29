@@ -335,3 +335,47 @@ img, video { display: block; max-width: 100%; }
 .tab:hover { color: var(--text); }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+
+/* NX Montage: mobile-first, no hidden footer under Android gesture navigation */
+.montage-intro{padding:24px 0 18px;max-width:860px}
+.montage-intro h2{font-size:clamp(25px,4vw,38px);letter-spacing:-.035em;line-height:1.12;margin:8px 0}
+.montage-intro p{color:var(--text-2);font-size:14px;max-width:68ch}
+.montage-eyebrow{font-size:11px;font-weight:800;letter-spacing:.18em;color:var(--muted)}
+.montage-engine{display:flex;align-items:center;gap:9px;padding:12px 14px;border:1px solid var(--border-2);border-radius:var(--radius-sm);margin-top:20px;flex-wrap:wrap}
+.montage-engine.ready{border-color:rgba(52,211,153,.3)}
+.montage-engine.offline{border-color:rgba(251,191,36,.25)}
+.montage-engine .conn{width:9px;height:9px;border-radius:50%;flex:none}
+.montage-engine-desc{font-size:12px;color:var(--muted);width:100%;padding-left:18px}
+.montage-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(290px,.8fr);align-items:start;gap:18px}
+.montage-form,.montage-history{padding:20px;min-width:0}
+.montage-form h3,.montage-history h3{font-size:16px;margin:0 0 18px}
+.montage-form>.field{display:block;margin-bottom:15px}
+.montage-form>.field .label{display:block;margin-bottom:7px}
+.montage-form select{appearance:auto}
+.montage-scenes{display:grid;gap:12px;margin:18px 0}
+.montage-scene{border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:14px;display:grid;gap:10px;background:var(--surface-2)}
+.montage-scene-header{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.montage-scene-header strong{font-size:13px;min-width:0;overflow-wrap:anywhere}
+.montage-scene-header span{color:var(--muted);font-size:12px}
+.montage-remove{border:0;background:none;color:var(--text-2);padding:4px 8px;cursor:pointer;font-size:19px}
+.montage-scene-controls{display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:10px}
+.montage-form .input,.montage-scene .input{width:100%;min-width:0}
+.montage-export{margin-top:20px;display:grid;gap:12px}
+.montage-export>span{font-size:12px;color:var(--muted)}
+.montage-export .btn.primary{justify-content:center;width:100%}
+.montage-result{border-bottom:1px solid var(--border-2);padding:15px 0;display:grid;gap:10px}
+.montage-result:first-of-type{padding-top:0}
+.montage-result small{color:var(--muted)}
+.montage-label{font-weight:600}
+.montage-label.completed{color:var(--success)}
+.montage-label.failed{color:var(--danger)}
+.montage-label.queued,.montage-label.running{color:var(--warning)}
+.montage-video{width:100%;aspect-ratio:16/9;background:#08080e;border-radius:8px}
+@media(max-width:1000px){.montage-columns{grid-template-columns:1fr}}
+@media(max-width:640px){
+ .montage-intro{padding:12px 0 16px}
+ .montage-form,.montage-history{padding:15px}
+ .montage-columns{gap:12px;padding-bottom:calc(85px + env(safe-area-inset-bottom, 0px))}
+ .montage-engine{margin-top:14px}
+ .montage-scene{padding:11px}
+}
