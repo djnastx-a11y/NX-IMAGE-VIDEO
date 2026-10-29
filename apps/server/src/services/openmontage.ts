@@ -176,6 +176,11 @@ export class OpenMontageService {
       const binary = path.join(composer, "node_modules", ".bin", "remotion");
       const args = ["render", "src/index.tsx", "Explainer", mp4,
         "--props", propsFile, "--codec", "h264", "--scale", "0.25", "--concurrency", "2"];
+      // A Docker runtime can use a preinstalled Chromium, avoiding a network browser download.
+      // This is a server-controlled path, never supplied by a client request.
+      if (process.env.NX_REMOTION_BROWSER && fs.existsSync(process.env.NX_REMOTION_BROWSER)) {
+        args.push("--browser-executable", process.env.NX_REMOTION_BROWSER);
+      }
       await new Promise<void>((resolve, reject) => {
         const child = spawn(binary, args, {
           cwd: composer, shell: false, stdio: ["ignore", "ignore", "pipe"],
