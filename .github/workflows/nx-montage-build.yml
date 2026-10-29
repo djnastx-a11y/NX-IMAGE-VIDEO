@@ -1,0 +1,31 @@
+name: NX Studio Montage build and contract
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'integrations/openmontage/**'
+      - '.github/workflows/nx-montage-build.yml'
+      - 'package*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile server, shared and mobile-ready web app
+        run: npm run build
+      - name: Check no-API-cost montage contract
+        run: npm test --workspace @nx/server -- openmontage.test.ts
