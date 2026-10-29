@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, DataProvider, JobsProvider, ToastProvider, useAuth } from "./lib/store";
 import { Toasts } from "./components/ui";
 import { StudioPage } from "./pages/Studio";
+import { MontagePage } from "./pages/Montage";
 import { LibraryPage } from "./pages/Library";
 import { HistoryPage } from "./pages/History";
 import { ProjectsPage } from "./pages/Projects";
@@ -25,6 +26,7 @@ function Gate() {
           <Route path="/" element={<StudioPage />} />
           <Route path="/image" element={<StudioPage key="image" module="image" />} />
           <Route path="/video" element={<StudioPage key="video" module="video" />} />
+          <Route path="/montage" element={<MontagePage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
