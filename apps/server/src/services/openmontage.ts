@@ -110,7 +110,17 @@ export class OpenMontageService {
     };
   }
 
+  private async markStale() {
+    // The first pilot uses a local Node process, not a durable distributed job runner.
+    // Make interruptions visible rather than leaving the app stuck on 'running' forever.
+    await this.s.pool.query(
+      "UPDATE openmontage_jobs SET status='failed', error='Le processus de rendu a été interrompu. Réessaie.', updated_at=now() " +
+      "WHERE status IN ('queued','running') AND updated_at < now() - interval '6 minutes'",
+    );
+  }
+
   async list(ownerId: string) {
+    await this.markStale();
     const { rows } = await this.s.pool.query<RenderRow>(
       "SELECT * FROM openmontage_jobs WHERE owner_id = $1 ORDER BY created_at DESC LIMIT 30", [ownerId],
     );
@@ -128,6 +138,7 @@ export class OpenMontageService {
   async submit(ownerId: string, input: unknown) {
     const state = this.status();
     if (!state.ready) throw new HttpError(503, state.message, "engine_offline");
+    await this.markStale();
     if (this.active.size > 0) throw new HttpError(409, "Un montage est déjà en cours. Réessaie après son export.", "busy");
     const spec = openMontageSpec.parse(input);
     if (spec.projectId && !(await this.s.projects.get(ownerId, spec.projectId))) {
