@@ -13,6 +13,11 @@ import type {
   User,
 } from "@nx/shared";
 
+export type MontageScene = { title: string; subtitle: string; kind: "hero_title" | "text_card"; duration: number };
+export type MontageRequest = { title: string; projectId: string | null; theme: "clean-professional" | "flat-motion-graphics" | "minimalist-diagram"; scenes: MontageScene[] };
+export type MontageStatus = { enabled: boolean; sourcePresent: boolean; revisionPinned: boolean; dependenciesPresent: boolean; ready: boolean; mode: string; message: string };
+export type MontageJob = { id: string; title: string; projectId: string | null; status: "queued" | "running" | "completed" | "failed"; error: string | null; mediaId: string | null; videoUrl: string | null; createdAt: string; updatedAt: string };
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -73,6 +78,10 @@ export function uploadMedia(file: File, opts: { projectId?: string | null; purpo
 }
 
 export const api = {
+  montageStatus: () => request<MontageStatus>("GET", "/api/openmontage/status"),
+  montageJobs: () => request<MontageJob[]>("GET", "/api/openmontage/jobs"),
+  montageJob: (id: string) => request<MontageJob>("GET", `/api/openmontage/jobs/${encodeURIComponent(id)}`),
+  montageRender: (spec: MontageRequest) => request<MontageJob>("POST", "/api/openmontage/jobs", spec),
   // auth
   authStatus: () => request<{ setupRequired: boolean; user: User | null }>("GET", "/api/auth/status"),
   setup: (b: { email: string; password: string; name: string }) => request<{ user: User }>("POST", "/api/auth/setup", b),
