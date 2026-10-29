@@ -1,0 +1,48 @@
+# Self-contained NX Studio + pinned OpenMontage Remotion composer pilot.
+# Build/test in an isolated environment before deployment. No paid provider keys.
+FROM node:22-bookworm-slim AS nx-build
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/server/package.json apps/server/
+COPY apps/web/package.json apps/web/
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN npm ci --no-audit --no-fund
+COPY packages packages
+COPY apps apps
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+FROM node:22-bookworm-slim AS openmontage
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+ARG OPENMONTAGE_PIN=e01dbf433f46eeb91d39bf905e194162921019a3
+RUN mkdir -p /opt/openmontage && cd /opt/openmontage \
+  && git init -q \
+  && git remote add origin https://github.com/calesthio/OpenMontage.git \
+  && git fetch --depth=1 --no-tags origin "$OPENMONTAGE_PIN" \
+  && git checkout -q --detach FETCH_HEAD \
+  && test "$(git rev-parse HEAD)" = "$OPENMONTAGE_PIN" \
+  && test -s LICENSE && test -s AGENT_GUIDE.md
+WORKDIR /opt/openmontage/remotion-composer
+RUN npm install --ignore-scripts --no-audit --no-fund
+
+FROM node:22-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ffmpeg chromium git fonts-dejavu-core tini ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV NODE_ENV=production NX_DATA_DIR=/data NX_WEB_DIR=/app/apps/web/dist PORT=8787 \
+  NX_OPENMONTAGE_ENABLED=true NX_OPENMONTAGE_HOME=/opt/openmontage NX_REMOTION_BROWSER=/usr/bin/chromium
+COPY --from=nx-build /app/package.json ./
+COPY --from=nx-build /app/node_modules node_modules
+COPY --from=nx-build /app/apps/server/package.json apps/server/
+COPY --from=nx-build /app/apps/server/dist apps/server/dist
+COPY --from=nx-build /app/apps/web/dist apps/web/dist
+COPY --from=openmontage /opt/openmontage /opt/openmontage
+RUN useradd --system --uid 1001 --create-home nx && mkdir -p /data && chown nx:nx /data
+USER nx
+VOLUME /data
+EXPOSE 8787
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8787)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "apps/server/dist/main.js"]
